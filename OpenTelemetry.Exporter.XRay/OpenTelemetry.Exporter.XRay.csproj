@@ -6,6 +6,12 @@
         <LangVersion>8</LangVersion>
         <AssemblyName>Marius.OpenTelemetry.Exporter.XRay</AssemblyName>
         <PackageId>Marius.OpenTelemetry.Exporter.XRay</PackageId>
+        <RepositoryUrl>https://github.com/marius-klimantavicius/opentelemetry-dotnet-exporter-xray</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+        <Authors>OpenTelemetry Authors,Marius Klimantavičius</Authors>
+        <Description>AWS X-Ray exporter for OpenTelemetry .NET</Description>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
     </PropertyGroup>
 
     <ItemGroup>
@@ -16,21 +22,21 @@
     <ItemGroup Condition="$(TargetFramework) == 'netstandard2.1'">
         <PackageReference Include="System.Text.Json" Version="6.0.6" />
     </ItemGroup>
-    
+
     <ItemGroup>
         <ProjectReference Include="..\OpenTelemetry.Exporter.XRay.SourceGenerators\OpenTelemetry.Exporter.XRay.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     </ItemGroup>
 
     <ItemGroup>
-      <Compile Remove="Model\**" />
+      <None Include="..\README.md" Pack="true" PackagePath="\">
+        <Link>README.md</Link>
+      </None>
     </ItemGroup>
 
     <ItemGroup>
-      <EmbeddedResource Remove="Model\**" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <None Remove="Model\**" />
+        <None Include="..\LICENSE" Pack="true" PackagePath="\">
+            <Link>LICENSE</Link>
+        </None>
     </ItemGroup>
 
 </Project>
