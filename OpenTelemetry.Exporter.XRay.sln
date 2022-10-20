@@ -1,0 +1,34 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenTelemetry.Exporter.XRay", "OpenTelemetry.Exporter.XRay\OpenTelemetry.Exporter.XRay.csproj", "{6A83D622-A27A-4BBB-8EB6-DA23B3259E92}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenTelemetry.Exporter.XRay.SourceGenerators", "OpenTelemetry.Exporter.XRay.SourceGenerators\OpenTelemetry.Exporter.XRay.SourceGenerators.csproj", "{357A5EB6-309F-4E88-B66E-99EA65EA7B3C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenTelemetry.Exporter.XRay.Tests", "OpenTelemetry.Exporter.XRay.Tests\OpenTelemetry.Exporter.XRay.Tests.csproj", "{016B1354-5B96-435D-8713-53C39781E219}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{779B7383-46F0-4715-A164-CAD83A0F5CF0}"
+	ProjectSection(SolutionItems) = preProject
+		LICENSE = LICENSE
+		README.md = README.md
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{6A83D622-A27A-4BBB-8EB6-DA23B3259E92}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6A83D622-A27A-4BBB-8EB6-DA23B3259E92}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6A83D622-A27A-4BBB-8EB6-DA23B3259E92}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6A83D622-A27A-4BBB-8EB6-DA23B3259E92}.Release|Any CPU.Build.0 = Release|Any CPU
+		{357A5EB6-309F-4E88-B66E-99EA65EA7B3C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{357A5EB6-309F-4E88-B66E-99EA65EA7B3C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{357A5EB6-309F-4E88-B66E-99EA65EA7B3C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{357A5EB6-309F-4E88-B66E-99EA65EA7B3C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{016B1354-5B96-435D-8713-53C39781E219}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{016B1354-5B96-435D-8713-53C39781E219}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{016B1354-5B96-435D-8713-53C39781E219}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{016B1354-5B96-435D-8713-53C39781E219}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

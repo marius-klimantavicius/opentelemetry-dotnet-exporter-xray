@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFrameworks>netstandard2.1;netcoreapp3.1;net5;net6</TargetFrameworks>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <LangVersion>8</LangVersion>
+        <AssemblyName>Marius.OpenTelemetry.Exporter.XRay</AssemblyName>
+        <PackageId>Marius.OpenTelemetry.Exporter.XRay</PackageId>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="AWSSDK.XRay" Version="3.7.0.217" />
+        <PackageReference Include="OpenTelemetry" Version="1.3.1" />
+    </ItemGroup>
+
+    <ItemGroup Condition="$(TargetFramework) == 'netstandard2.1'">
+        <PackageReference Include="System.Text.Json" Version="6.0.6" />
+    </ItemGroup>
+    
+    <ItemGroup>
+        <ProjectReference Include="..\OpenTelemetry.Exporter.XRay.SourceGenerators\OpenTelemetry.Exporter.XRay.SourceGenerators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Compile Remove="Model\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <EmbeddedResource Remove="Model\**" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <None Remove="Model\**" />
+    </ItemGroup>
+
+</Project>
