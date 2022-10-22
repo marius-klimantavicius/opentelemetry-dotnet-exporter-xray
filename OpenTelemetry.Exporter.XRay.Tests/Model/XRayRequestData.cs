@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace OpenTelemetry.Exporter.XRay.Tests.Model
 {
-    internal struct XRayRequestData
+    internal class XRayRequestData
     {
         [JsonPropertyName("x_forwarded_for")]
         public bool? XForwardedFor { get; set; }

@@ -9,13 +9,11 @@ using Xunit;
 
 namespace OpenTelemetry.Exporter.XRay.Tests
 {
-    public partial class XRayConverterAwsTests
+    public partial class XRayConverterAwsTests : XRayTest
     {
         [Fact]
         public void Should_contain_database_url()
         {
-            var converter = XRayTest.CreateDefaultConverter();
-            var resource = Resource.Empty;
             var activity = new Activity("Test");
 
             activity.SetTag(XRayConventions.AttributeDbSystem, "mysql");
@@ -26,9 +24,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             activity.SetTag(XRayConventions.AttributeNetPeerName, "db.example.com");
             activity.SetTag(XRayConventions.AttributeNetPeerPort, "3306");
 
-            var segmentDocument = converter.Convert(resource, activity);
-            var segment = JsonSerializer.Deserialize<XRaySegment>(segmentDocument);
-            Assert.NotNull(segment);
+            var segment = ConvertDefault(activity);
             Assert.NotNull(segment.Sql);
             Assert.Equal("mysql://db.example.com:3306/customers", segment.Sql.Url);
         }
@@ -36,8 +32,6 @@ namespace OpenTelemetry.Exporter.XRay.Tests
         [Fact]
         public void Should_not_contain_sql_for_non_sql_database()
         {
-            var converter = XRayTest.CreateDefaultConverter();
-            var resource = Resource.Empty;
             var activity = new Activity("Test");
 
             activity.SetTag(XRayConventions.AttributeDbSystem, "redis");
@@ -48,17 +42,13 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             activity.SetTag(XRayConventions.AttributeNetPeerName, "db.example.com");
             activity.SetTag(XRayConventions.AttributeNetPeerPort, "3306");
 
-            var segmentDocument = converter.Convert(resource, activity);
-            var segment = JsonSerializer.Deserialize<XRaySegment>(segmentDocument);
-            Assert.NotNull(segment);
+            var segment = ConvertDefault(activity);
             Assert.Null(segment.Sql);
         }
 
         [Fact]
         public void Should_generate_database_url()
         {
-            var converter = XRayTest.CreateDefaultConverter();
-            var resource = Resource.Empty;
             var activity = new Activity("Test");
 
             activity.SetTag(XRayConventions.AttributeDbSystem, "postgresql");
@@ -69,9 +59,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             activity.SetTag(XRayConventions.AttributeNetPeerName, "db.example.com");
             activity.SetTag(XRayConventions.AttributeNetPeerPort, "3306");
 
-            var segmentDocument = converter.Convert(resource, activity);
-            var segment = JsonSerializer.Deserialize<XRaySegment>(segmentDocument);
-            Assert.NotNull(segment);
+            var segment = ConvertDefault(activity);
             Assert.NotNull(segment.Sql);
             Assert.Equal("localhost/customers", segment.Sql.Url);
         }
