@@ -1,15 +1,10 @@
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Text.Json;
 using OpenTelemetry.Exporter.XRay.Implementation;
-using OpenTelemetry.Exporter.XRay.Tests.Model;
-using OpenTelemetry.Resources;
 using Xunit;
 
 namespace OpenTelemetry.Exporter.XRay.Tests
 {
-    public partial class XRayConverterAwsTests : XRayTest
+    public partial class XRayConverterSqlTests : XRayTest
     {
         [Fact]
         public void Should_contain_database_url()

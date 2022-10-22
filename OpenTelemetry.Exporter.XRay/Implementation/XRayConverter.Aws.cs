@@ -213,7 +213,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
 
             if (service == XRayAwsConventions.AttributeCloudPlatformAwsEks || !string.IsNullOrEmpty(clusterName))
             {
-                writer.WritePropertyName(XRayWriter.Beanstalk);
+                writer.WritePropertyName(XRayWriter.Eks);
                 writer.WriteStartObject();
 
                 writer.WriteString(XRayWriter.ClusterName, clusterName);
@@ -292,13 +292,13 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         private string ParseLogGroup(string arn)
         {
             var span = arn.AsSpan();
-            for (var i = 0; i < 7; i++)
+            for (var i = 0; i < 6; i++)
             {
                 var index = span.IndexOf(':');
                 if (index < 0)
                     return arn;
 
-                span = span.Slice(index);
+                span = span.Slice(index + 1);
             }
 
             var lastIndex = span.IndexOf(':');
