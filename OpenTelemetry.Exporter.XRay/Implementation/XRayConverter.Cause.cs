@@ -117,7 +117,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 if (context.Span.TagObjects.TryGetValue(XRayConventions.AttributeHttpStatusCode, out var value))
                 {
                     var code = value.AsInt();
-                    if (code >= 400 && code < 499)
+                    if (code >= 400 && code <= 499)
                     {
                         isError = true;
                         if (code == 429)
@@ -155,9 +155,11 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 // Right now we only care about dotnet, other languages can be ported on-demand
                 switch (language)
                 {
-                    // case "java":
+                    case "java":
+                        FillJavaStacktrace(writer, stacktrace);
+                        break;
                     // case "python":
-                    // case "javascript":
+                    //case "javascript":
                     case "dotnet":
                         FillDotNetStacktrace(writer, stacktrace);
                         break;
@@ -167,6 +169,95 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             }
 
             writer.WriteEndObject();
+        }
+
+        private void FillJavaStacktrace(Utf8JsonWriter writer, string stacktrace)
+        {
+            var r = new StringReader(stacktrace);
+
+            // Skip first line containing top level message
+            if (r.ReadLine() == null)
+                return;
+
+            var line = r.ReadLine();
+            if (line == null)
+                return;
+
+            var hasStack = false;
+            while (line != null)
+            {
+                if (line.StartsWith("\tat "))
+                {
+                    var parenIndex = line.IndexOf('(');
+                    if (parenIndex >= 0 && line[line.Length - 1] == ')')
+                    {
+                        var label = line[4..parenIndex];
+                        var slashIdx = label.IndexOf('/');
+                        if (slashIdx >= 0)
+                            label = label[(slashIdx + 1)..];
+
+                        var path = line[(parenIndex + 1)..^1];
+                        var lineNumber = 0;
+                        var colonIdx = path.IndexOf(':');
+
+                        if (colonIdx >= 0)
+                        {
+                            var lineStr = path[(colonIdx + 1)..];
+                            path = path[..colonIdx];
+                            int.TryParse(lineStr, NumberStyles.Any, CultureInfo.InvariantCulture, out lineNumber);
+                        }
+
+                        hasStack = WriteExceptionStack(writer, hasStack, path, label, lineNumber);
+                    }
+                }
+                else if (line.StartsWith("Caused by: "))
+                {
+                    var causeType = line[11..];
+                    var colonIdx = causeType.IndexOf(':');
+                    var causeMessage = "";
+                    if (colonIdx >= 0)
+                    {
+                        causeMessage = causeType[(colonIdx + 2)..];
+                        causeType = causeType[..colonIdx];
+                    }
+
+                    while (true)
+                    {
+                        line = r.ReadLine();
+                        if (line == null)
+                            break;
+
+                        if (line.StartsWith("\tat ") && line.IndexOf('(') >= 0 && line[^1] == ')')
+                            break;
+
+                        causeMessage += line;
+                    }
+
+                    if (hasStack)
+                        writer.WriteEndArray();
+                    hasStack = false;
+
+                    var nextId = NewSegmentId().ToHexString();
+                    writer.WriteString(XRayWriter.Cause, nextId);
+                    writer.WriteEndObject(); // end previous exception
+
+                    writer.WriteStartObject();
+                    writer.WriteString(XRayWriter.Id, nextId);
+                    if (causeType != null)
+                        writer.WriteString(XRayWriter.Type, causeType);
+                    if (causeMessage != null)
+                        writer.WriteString(XRayWriter.Message, causeMessage);
+
+                    continue;
+                }
+
+                line = r.ReadLine();
+            }
+
+            if (hasStack)
+            {
+                writer.WriteEndArray();
+            }
         }
 
         private void FillDotNetStacktrace(Utf8JsonWriter writer, string stacktrace)
@@ -189,6 +280,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                     prefix = 4;
                 else if (line.StartsWith("   at"))
                     prefix = 6;
+
                 if (prefix >= 0)
                 {
                     var index = line.IndexOf(" in ", StringComparison.Ordinal);
@@ -210,21 +302,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                             int.TryParse(lineString, NumberStyles.Integer, CultureInfo.InvariantCulture, out lineNumber);
                         }
 
-                        if (!hasStack)
-                        {
-                            writer.WritePropertyName(XRayWriter.Stack);
-                            writer.WriteStartArray();
-                            hasStack = true;
-                        }
-
-                        writer.WriteStartObject();
-                        if (path != null)
-                            writer.WriteString(XRayWriter.Path, path);
-                        if (label != null)
-                            writer.WriteString(XRayWriter.Label, label);
-                        if (lineNumber != 0)
-                            writer.WriteNumber(XRayWriter.Line, lineNumber);
-                        writer.WriteEndObject();
+                        hasStack = WriteExceptionStack(writer, hasStack, path, label, lineNumber);
                     }
                     else
                     {
@@ -232,22 +310,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                         if (idx >= 0)
                         {
                             var label = line[prefix..(idx + 1)];
-                            var path = "";
-                            var lineNumber = 0;
-
-                            if (!hasStack)
-                            {
-                                writer.WritePropertyName(XRayWriter.Stack);
-                                writer.WriteStartArray();
-                                hasStack = true;
-                            }
-
-                            writer.WriteStartObject();
-                            writer.WriteString(XRayWriter.Path, path);
-                            if (label != null)
-                                writer.WriteString(XRayWriter.Label, label);
-                            writer.WriteNumber(XRayWriter.Line, lineNumber);
-                            writer.WriteEndObject();
+                            hasStack = WriteExceptionStack(writer, hasStack, "", label, 0);
                         }
                     }
                 }
@@ -259,6 +322,26 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             {
                 writer.WriteEndArray();
             }
+        }
+
+        private bool WriteExceptionStack(Utf8JsonWriter writer, bool hasStack, string path, string label, int lineNumber)
+        {
+            if (!hasStack)
+            {
+                writer.WritePropertyName(XRayWriter.Stack);
+                writer.WriteStartArray();
+            }
+
+            writer.WriteStartObject();
+            if (path != null)
+                writer.WriteString(XRayWriter.Path, path);
+            if (label != null)
+                writer.WriteString(XRayWriter.Label, label);
+            if (lineNumber != 0)
+                writer.WriteNumber(XRayWriter.Line, lineNumber);
+            writer.WriteEndObject();
+
+            return true;
         }
     }
 }

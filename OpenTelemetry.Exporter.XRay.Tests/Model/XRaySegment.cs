@@ -39,13 +39,13 @@ namespace OpenTelemetry.Exporter.XRay.Tests.Model
         public XRayHttpData Http { get; set; }
 
         [JsonPropertyName("fault")]
-        public bool Fault { get; set; }
+        public bool IsFault { get; set; }
 
         [JsonPropertyName("error")]
-        public bool Error { get; set; }
+        public bool IsError { get; set; }
 
         [JsonPropertyName("throttle")]
-        public bool Throttle { get; set; }
+        public bool IsThrottle { get; set; }
 
         [JsonPropertyName("cause")]
         public XRayCauseData Cause { get; set; }
