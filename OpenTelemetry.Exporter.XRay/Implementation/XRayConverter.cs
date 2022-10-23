@@ -14,11 +14,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
     {
         private const double TicksPerMillisecond = 10000;
         private const double TicksPerSecond = TicksPerMillisecond * 1000;
-
-        private const int MaxAge = 60 * 60 * 24 * 28;
-        private const int MaxSkew = 60 * 5;
-        private const int TraceIdLength = 35;
-
+        
         private const string DefaultSegmentName = "span";
         private const int MaxSegmentNameLength = 200;
 
@@ -28,15 +24,17 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         private readonly HashSet<string> _indexedAttributes;
         private readonly bool _indexAllAttributes;
         private readonly bool _indexActivityNames;
+        private readonly bool _validateTraceId;
 
         [ThreadStatic]
         private static XRayConverterCache _cache;
 
-        public XRayConverter(IEnumerable<string> indexedAttributes, bool indexAllAttributes, bool indexActivityNames)
+        public XRayConverter(IEnumerable<string> indexedAttributes, bool indexAllAttributes, bool indexActivityNames, bool validateTraceId = false)
         {
             _indexedAttributes = new HashSet<string>(indexedAttributes ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
             _indexAllAttributes = indexAllAttributes;
             _indexActivityNames = indexActivityNames;
+            _validateTraceId = validateTraceId;
         }
 
         public string Convert(Resource resource, Activity span)
@@ -70,6 +68,9 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 attributes.ResetConsume();
 
                 var traceId = ToXRayTraceIdFormat(span.TraceId.ToString());
+                if (string.IsNullOrEmpty(traceId))
+                    return null;
+                
                 var startTime = (span.StartTimeUtc - DateTime.UnixEpoch).TotalSeconds;
                 var endTime = startTime + span.Duration.TotalSeconds;
 
@@ -184,7 +185,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
 
             return (name, @namespace);
         }
-
+        
         private string DetermineAwsOrigin(in XRayConverterContext context)
         {
             var resourceAttributes = context.ResourceAttributes;
@@ -464,22 +465,6 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
 
                 writer.WriteEndArray();
             }
-        }
-
-        private string FixSegmentName(string name)
-        {
-            name = _invalidSpanCharacters.Replace(name, "");
-            if (name.Length > MaxSegmentNameLength)
-                name = name.Substring(0, MaxSegmentNameLength);
-            else if (name.Length == 0)
-                name = DefaultSegmentName;
-
-            return name;
-        }
-
-        private string FixAnnotationKey(string name)
-        {
-            return _invalidAnnotationCharacters.Replace(name, "_");
         }
     }
 }

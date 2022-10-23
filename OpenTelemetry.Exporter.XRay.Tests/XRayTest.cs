@@ -53,12 +53,36 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             _activitySource?.Dispose();
         }
 
+        internal XRaySegment ConvertSegment(XRayConverter converter, Activity span, Resource resource = null)
+        {
+            resource ??= Resource.Empty;
+            var segmentDocument = converter.Convert(resource, span);
+            var segment = JsonSerializer.Deserialize<XRaySegment>(segmentDocument);
+            Assert.NotNull(segment);
+
+            return segment;
+        }
+
         internal XRaySegment ConvertDefault(Activity span, Resource resource = null)
         {
             resource ??= Resource.Empty;
 
             var converter = CreateDefaultConverter();
             var segmentDocument = converter.Convert(resource, span);
+            var segment = JsonSerializer.Deserialize<XRaySegment>(segmentDocument);
+            Assert.NotNull(segment);
+
+            return segment;
+        }
+
+        internal XRaySegment ConvertDefault(Activity span, Resource resource, out string segmentDocument)
+        {
+            resource ??= Resource.Empty;
+
+            var converter = CreateDefaultConverter();
+            
+            segmentDocument = converter.Convert(resource, span);
+            
             var segment = JsonSerializer.Deserialize<XRaySegment>(segmentDocument);
             Assert.NotNull(segment);
 
@@ -108,6 +132,18 @@ namespace OpenTelemetry.Exporter.XRay.Tests
                 [AttributeMessagingMessagePayloadCompressedSizeBytes] = 6478,
                 [XRayConventions.AttributeMessagingPayloadSize] = 12452,
 
+            });
+            var ev = new ActivityEvent("", span.StartTimeUtc.Add(span.Duration), tags);
+            span.AddEvent(ev);
+        }
+
+        internal static void ConstructTimedEventsWithSentMessageEvent(Activity span)
+        {
+            var tags = new ActivityTagsCollection(new Dictionary<string, object>
+            {
+                ["message.type"] = "SENT",
+                [AttributeMessagingMessageID] = 1,
+                [XRayConventions.AttributeMessagingPayloadSize] = 7480,
             });
             var ev = new ActivityEvent("", span.StartTimeUtc.Add(span.Duration), tags);
             span.AddEvent(ev);

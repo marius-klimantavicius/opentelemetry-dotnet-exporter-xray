@@ -16,7 +16,11 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         public XRayExporter(XRayExporterOptions options)
         {
             _client = options.AmazonXRayClientFactory();
-            _converter = new XRayConverter(options.IndexedAttributes, options.IndexAllAttributes, options.IndexActivityNames);
+            _converter = new XRayConverter(
+                options.IndexedAttributes, 
+                options.IndexAllAttributes, 
+                options.IndexActivityNames, 
+                options.ValidateTraceId);
         }
 
         public override ExportResult Export(in Batch<Activity> batch)
@@ -33,6 +37,9 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 foreach (var item in batch)
                 {
                     var document = _converter.Convert(resource, item);
+                    if (document == null)
+                        continue;
+
                     if (totalLength + document.Length > MaxDocumentSize || documentList.Count >= 50)
                     {
                         request.TraceSegmentDocuments = documentList;

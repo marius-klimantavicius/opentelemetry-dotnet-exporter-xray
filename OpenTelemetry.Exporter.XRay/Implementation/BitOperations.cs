@@ -4,12 +4,13 @@
 #if NETSTANDARD2_1
 using System;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace OpenTelemetry.Exporter.XRay.Implementation
 {
     public static class BitOperations
     {
-        private static readonly byte[] TrailingZeroCountDeBruijn = new byte[32]
+        private static ReadOnlySpan<byte> TrailingZeroCountDeBruijn => new byte[]
         {
             00, 01, 28, 02, 29, 14, 24, 03,
             30, 22, 20, 15, 25, 17, 04, 08,
@@ -25,7 +26,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         public static int TrailingZeroCount(uint value)
         {
             return Unsafe.AddByteOffset(
-                ref TrailingZeroCountDeBruijn[0],
+                ref MemoryMarshal.GetReference(TrailingZeroCountDeBruijn),
                 // uint|long -> IntPtr cast on 32-bit platforms does expensive overflow checks not needed here
                 (IntPtr)(int)(((value & (uint)-(int)value) * 0x077CB531u) >> 27)); // Multi-cast mitigates redundant conv.u8
         }

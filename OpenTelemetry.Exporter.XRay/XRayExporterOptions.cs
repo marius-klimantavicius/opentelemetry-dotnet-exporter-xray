@@ -43,6 +43,12 @@ namespace OpenTelemetry.Exporter.XRay
         public bool IndexActivityNames { get; set; } = true;
 
         /// <summary>
+        /// Gets or sets a value indicating whether to validate passed trace id.
+        /// If the trace id is invalid or expired then the activity will be rejected/ignored.
+        /// </summary>
+        public bool ValidateTraceId { get; set; } = false;
+
+        /// <summary>
         /// Gets or sets the type of Export Processor to be used.
         /// </summary>
         public ExportProcessorType ExportProcessorType { get; set; } = ExportProcessorType.Batch;

@@ -755,7 +755,7 @@ Caused by: java.lang.IllegalArgumentException: bad argument
             var endTime = DateTime.UtcNow;
             var startTime = endTime.AddSeconds(-90);
 
-            var activityContext = new ActivityContext(ActivityTraceId.CreateRandom(), ActivitySpanId.CreateRandom(), ActivityTraceFlags.Recorded);
+            var activityContext = new ActivityContext(XRayTraceId.Generate(), ActivitySpanId.CreateRandom(), ActivityTraceFlags.Recorded);
             var activity = ActivitySource.CreateActivity("/widgets", ActivityKind.Server, activityContext, attributes);
             Assert.NotNull(activity);
 

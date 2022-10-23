@@ -55,3 +55,7 @@ will be passed as annotations, other values will be passed as metadata.
 
 If `true` then `activity_display_name` and `activity_operation_name` corresponding to `Activity.DisplayName` 
 and `Activity.OperationName` are passed as annotations.
+
+#### `ValidateTraceId` (optional, default: `false`)
+
+If `true` then will reject/ignore activities that have either invalid aws trace id or trace id has expired.

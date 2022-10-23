@@ -27,7 +27,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             };
 
             var resource = new Resource(attributes);
-            var activity = new Activity("test");
+            var activity = new Activity("Test");
             var segment = ConvertDefault(activity, resource);
 
             Assert.NotNull(segment.Aws);
@@ -78,7 +78,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             };
 
             var resource = new Resource(attributes);
-            var activity = new Activity("test");
+            var activity = new Activity("Test");
             var segment = ConvertDefault(activity, resource);
 
             Assert.NotNull(segment.Aws);
@@ -117,7 +117,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             };
 
             var resource = new Resource(attributes);
-            var activity = new Activity("test");
+            var activity = new Activity("Test");
             var segment = ConvertDefault(activity, resource);
 
             Assert.NotNull(segment.Aws);
@@ -159,7 +159,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             };
 
             var resource = new Resource(attributes);
-            var activity = new Activity("test");
+            var activity = new Activity("Test");
             var segment = ConvertDefault(activity, resource);
 
             Assert.NotNull(segment.Aws);
@@ -180,7 +180,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
         {
             // PORT: Original test initializes attrs and not used it
 
-            var activity = new Activity("test");
+            var activity = new Activity("Test");
 
             var queueUrl = "https://sqs.use1.amazonaws.com/Meltdown-Alerts";
             activity.SetTag(XRayConventions.AttributeAwsOperation, "SendMessage");
@@ -201,7 +201,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
         [Fact]
         public void Should_map_rpc_method_to_operation()
         {
-            var activity = new Activity("test");
+            var activity = new Activity("Test");
             activity.SetTag(XRayConventions.AttributeRpcMethod, "ListBuckets");
 
             var segment = ConvertDefault(activity);
@@ -215,7 +215,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
         [Fact]
         public void Should_map_sqs_with_alternative_attribute()
         {
-            var activity = new Activity("test");
+            var activity = new Activity("Test");
 
             var queueUrl = "https://sqs.use1.amazonaws.com/Meltdown-Alerts";
             activity.SetTag(XRayConventions.AttributeAwsQueueUrl2, queueUrl);
@@ -231,7 +231,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
         [Fact]
         public void Should_map_dynamo_db()
         {
-            var activity = new Activity("test");
+            var activity = new Activity("Test");
 
             var tableName = "WIDGET_TYPES";
             activity.SetTag(XRayConventions.AttributeRpcMethod, "IncorrectAWSSDKOperation");
@@ -252,7 +252,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
         [Fact]
         public void Should_map_dynamo_db_with_alternative_attribute()
         {
-            var activity = new Activity("test");
+            var activity = new Activity("Test");
 
             var tableName = "MyTable";
             activity.SetTag(XRayConventions.AttributeAwsTableName2, tableName);
@@ -268,7 +268,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
         [Fact]
         public void Should_map_request_id_with_alternative_attribute()
         {
-            var activity = new Activity("test");
+            var activity = new Activity("Test");
 
             var requestId = "12345-request";
             activity.SetTag(XRayConventions.AttributeAwsRequestId2, requestId);
@@ -292,7 +292,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             };
 
             var resource = new Resource(attributes);
-            var activity = new Activity("test");
+            var activity = new Activity("Test");
             var segment = ConvertDefault(activity, resource);
 
             Assert.NotNull(segment.Aws);
@@ -315,7 +315,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             };
 
             var resource = new Resource(attributes);
-            var activity = new Activity("test");
+            var activity = new Activity("Test");
             var segment = ConvertDefault(activity, resource);
 
             Assert.NotNull(segment.Aws);
@@ -338,7 +338,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             };
 
             var resource = new Resource(attributes);
-            var activity = new Activity("test");
+            var activity = new Activity("Test");
             var segment = ConvertDefault(activity, resource);
 
             Assert.NotNull(segment.Aws);
@@ -360,7 +360,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             };
 
             var resource = new Resource(attributes);
-            var activity = new Activity("test");
+            var activity = new Activity("Test");
             var segment = ConvertDefault(activity, resource);
 
             Assert.NotNull(segment.Aws);
@@ -380,7 +380,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             };
 
             var resource = new Resource(attributes);
-            var activity = new Activity("test");
+            var activity = new Activity("Test");
             var segment = ConvertDefault(activity, resource);
 
             Assert.NotNull(segment.Aws);
@@ -403,7 +403,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             };
 
             var resource = new Resource(attributes);
-            var activity = new Activity("test");
+            var activity = new Activity("Test");
             var segment = ConvertDefault(activity, resource);
 
             Assert.NotNull(segment.Aws);
