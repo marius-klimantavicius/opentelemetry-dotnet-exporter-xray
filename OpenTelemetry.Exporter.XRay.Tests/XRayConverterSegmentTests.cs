@@ -826,6 +826,66 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             Assert.Equal(true, map["value2"]);
         }
 
+        [Fact]
+        public void Should_map_supported_primitive_types_for_annotations()
+        {
+            var spanName = "/test";
+            var parentSpanID = ActivitySpanId.CreateRandom();
+            var resource = Resource.Empty;
+            var span = ConstructServerSpan(parentSpanID, spanName, ActivityStatusCode.Error, "OK", null);
+
+            span.SetTag("byte_value", (byte)15);
+            span.SetTag("decimal_value", 24M);
+            span.SetTag("short_value", (short)21);
+            span.SetTag("sbyte_value", (sbyte)96);
+            span.SetTag("float_value", 3.14F);
+            span.SetTag("ushort_value", (ushort)633);
+            span.SetTag("uint_value", (uint)74556);
+            span.SetTag("ulong_value", 5222658414UL);
+
+            span.SetTag("char_value", 'a');
+            var dateTime = DateTime.UtcNow.AddMinutes(-3);
+            span.SetTag("DateTime_value", dateTime);
+
+            var timeSpan = TimeSpan.FromSeconds(117);
+            span.SetTag("TimeSpan_value", timeSpan);
+
+            var dateTimeOffset = DateTimeOffset.UtcNow.AddDays(-2);
+            span.SetTag("DateTimeOffset_value", dateTimeOffset);
+            
+            var guid = Guid.NewGuid();
+            span.SetTag("Guid_value", guid);
+
+            var uri = new Uri("https://learn.example.com/path?hello=world");
+            span.SetTag("Uri_value", uri);
+
+            var version = new Version(23, 34);
+            span.SetTag("Version_value", version);
+
+            var converter = new XRayConverter(null, true, false);
+            var segment = ConvertSegment(converter, span, resource);
+            var annotations = segment.Annotations;
+            
+            Assert.Equal((byte)15, ((JsonElement)annotations["byte_value"]).GetByte());
+            Assert.Equal(24M, ((JsonElement)annotations["decimal_value"]).GetDecimal());
+            Assert.Equal((short)21, ((JsonElement)annotations["short_value"]).GetInt16());
+            Assert.Equal((sbyte)96, ((JsonElement)annotations["sbyte_value"]).GetSByte());
+            Assert.Equal(3.14F, ((JsonElement)annotations["float_value"]).GetSingle());
+            Assert.Equal((ushort)633, ((JsonElement)annotations["ushort_value"]).GetUInt16());
+            Assert.Equal((uint)74556, ((JsonElement)annotations["uint_value"]).GetUInt32());
+            Assert.Equal(5222658414UL, ((JsonElement)annotations["ulong_value"]).GetUInt64());
+            Assert.Equal("a", ((JsonElement)annotations["char_value"]).GetString());
+            Assert.Equal(dateTime, ((JsonElement)annotations["DateTime_value"]).GetDateTime());
+            Assert.Equal(dateTimeOffset, ((JsonElement)annotations["DateTimeOffset_value"]).GetDateTimeOffset());
+            Assert.Equal(guid, ((JsonElement)annotations["Guid_value"]).GetGuid());
+            Assert.Equal(uri.ToString(), ((JsonElement)annotations["Uri_value"]).GetString());
+
+            #if NET6_0_OR_GREATER
+            Assert.Equal(timeSpan.ToString(), ((JsonElement)annotations["TimeSpan_value"]).GetString());
+            Assert.Equal(version.ToString(), ((JsonElement)annotations["Version_value"]).GetString());
+            #endif
+        }
+
         private Activity ConstructClientSpan(ActivitySpanId parentSpanId, string name, ActivityStatusCode code, string message, IEnumerable<KeyValuePair<string, object>> attributes)
         {
             var traceId = XRayTraceId.Generate();

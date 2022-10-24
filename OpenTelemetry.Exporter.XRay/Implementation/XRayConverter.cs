@@ -8,13 +8,17 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using OpenTelemetry.Resources;
 
+#if NET6_0_OR_GREATER
+using System.Text.Json.Nodes;
+#endif
+
 namespace OpenTelemetry.Exporter.XRay.Implementation
 {
     internal partial class XRayConverter
     {
         private const double TicksPerMillisecond = 10000;
         private const double TicksPerSecond = TicksPerMillisecond * 1000;
-        
+
         private const string DefaultSegmentName = "span";
         private const int MaxSegmentNameLength = 200;
 
@@ -70,7 +74,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 var traceId = ToXRayTraceIdFormat(span.TraceId.ToString());
                 if (string.IsNullOrEmpty(traceId))
                     return null;
-                
+
                 var startTime = (span.StartTimeUtc - DateTime.UnixEpoch).TotalSeconds;
                 var endTime = startTime + span.Duration.TotalSeconds;
 
@@ -185,7 +189,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
 
             return (name, @namespace);
         }
-        
+
         private string DetermineAwsOrigin(in XRayConverterContext context)
         {
             var resourceAttributes = context.ResourceAttributes;
@@ -260,14 +264,14 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 foreach (var item in resourceAttributes)
                 {
                     var key = "otel.resource." + item.Key;
-                    var annoVal = AnnotationValue(item.Value);
+                    var annoVal = item.Value;
                     var indexed = _indexAllAttributes || _indexedAttributes.Contains(key);
-                    if ((annoVal == null || !indexed) && IsMetadataValue(item.Value))
+                    if ((!indexed || !IsAnnotationValue(annoVal)) && IsMetadataValue(annoVal))
                     {
                         hasMetadata = WriteMetadataObject(hasMetadata, writer);
 
                         writer.WritePropertyName(key);
-                        WriteValue(writer, item.Value);
+                        WriteValue(writer, annoVal);
                     }
                 }
             }
@@ -317,9 +321,9 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 foreach (var item in resourceAttributes)
                 {
                     var key = "otel.resource." + item.Key;
-                    var annoVal = AnnotationValue(item.Value);
+                    var annoVal = item.Value;
                     var indexed = _indexAllAttributes || _indexedAttributes.Contains(key);
-                    if (annoVal != null && indexed)
+                    if (indexed && IsAnnotationValue(annoVal))
                     {
                         hasAnnotations = WriteAnnotationsObject(hasAnnotations, writer);
 
@@ -345,8 +349,8 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                     continue;
 
                 var key = FixAnnotationKey(item.Key);
-                var annoVal = AnnotationValue(item.Value);
-                if (annoVal != null)
+                var annoVal = item.Value;
+                if (IsAnnotationValue(annoVal))
                 {
                     hasAnnotations = WriteAnnotationsObject(hasAnnotations, writer);
 
@@ -370,101 +374,85 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             }
         }
 
-        private object AnnotationValue(object value)
+        private bool IsAnnotationValue(object value)
         {
-            if (value is string
-                || value is int
-                || value is long
-                || value is double
-                || value is bool)
-                return value;
+            if (value == null)
+                return false;
 
-            return null;
-        }
+            var type = value.GetType();
+            for (var i = 0; i < SupportedPrimitiveTypes.Length; i++)
+            {
+                if (ReferenceEquals(type, SupportedPrimitiveTypes[i]))
+                    return true;
+            }
 
-        private bool IsMetadataValue(object value)
-        {
-            if (value is string
-                || value is int
-                || value is long
-                || value is double
-                || value is bool
-                || value is IDictionary
-                || value is IEnumerable)
-                return true;
+            if (value is JsonElement element)
+            {
+                if (element.ValueKind != JsonValueKind.Array
+                    && element.ValueKind != JsonValueKind.Object
+                    && element.ValueKind != JsonValueKind.Null
+                    && element.ValueKind != JsonValueKind.Undefined)
+                    return true;
+            }
 
             return false;
         }
 
-        private static void WriteValue<T>(Utf8JsonWriter writer, T value)
+        private bool IsMetadataValue(object value)
         {
-            switch (value)
-            {
-                case string stringValue:
-                    writer.WriteStringValue(stringValue);
-                    break;
-                case int intValue:
-                    writer.WriteNumberValue(intValue);
-                    break;
-                case long longValue:
-                    writer.WriteNumberValue(longValue);
-                    break;
-                case double doubleValue:
-                    writer.WriteNumberValue(doubleValue);
-                    break;
-                case bool boolValue:
-                    writer.WriteBooleanValue(boolValue);
-                    break;
-                case IDictionary dictionary:
-                    writer.WriteStartObject();
+            if (value == null)
+                return false;
 
-                    foreach (DictionaryEntry item in dictionary)
-                    {
-                        if (item.Key is string stringKey)
-                        {
-                            writer.WritePropertyName(stringKey);
-                            WriteValue(writer, item.Value);
-                        }
-                    }
+            if (IsAnnotationValue(value))
+                return true;
 
-                    writer.WriteEndObject();
-                    break;
-                
-                case string[] array:
-                    WriteArray(writer, array);
-                    break;
-                
-                case bool[] array:
-                    WriteArray(writer, array);
-                    break;
-                
-                case double[] array:
-                    WriteArray(writer, array);
-                    break;
-
-                case long[] array:
-                    WriteArray(writer, array);
-                    break;
-
-                case IEnumerable enumerable:
-                    writer.WriteStartArray();
-
-                    foreach (var item in enumerable)
-                        WriteValue(writer, item);
-
-                    writer.WriteEndArray();
-                    break;
-            }
-
-            static void WriteArray<TArrayItem>(Utf8JsonWriter writer, TArrayItem[] array)
-            {
-                writer.WriteStartArray();
-
-                foreach (var item in array)
-                    WriteValue(writer, item);
-
-                writer.WriteEndArray();
-            }
+            // Should we allow any object here? Let System.Text.Json to try and serialize it?
+            return value is IEnumerable // assume that system.text.json can serialize this
+                || value is JsonDocument
+                || value is JsonElement
+#if NET6_0_OR_GREATER
+                || value is JsonArray
+                || value is JsonObject
+#endif
+                ;
         }
+
+        private static void WriteValue(Utf8JsonWriter writer, object value)
+        {
+            JsonSerializer.Serialize(writer, value);
+        }
+
+        private static readonly Type[] SupportedPrimitiveTypes = new[]
+        {
+            // The most common ones go to top
+            typeof(string),
+            typeof(double),
+            typeof(long),
+            typeof(int),
+            typeof(bool),
+
+            typeof(byte),
+            typeof(decimal),
+            typeof(short),
+            typeof(sbyte),
+            typeof(float),
+            typeof(ushort),
+            typeof(uint),
+            typeof(ulong),
+
+            typeof(char),
+            typeof(DateTime),
+            typeof(DateTimeOffset),
+            typeof(Guid),
+            typeof(Uri),
+            
+#if NET6_0_OR_GREATER
+            typeof(TimeSpan),
+            typeof(Version),
+            typeof(JsonValue),
+            typeof(DateOnly),
+            typeof(TimeOnly),
+#endif
+        };
     }
 }
