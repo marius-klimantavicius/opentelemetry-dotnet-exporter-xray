@@ -52,7 +52,8 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
 
         private string ToXRayTraceIdFormat(string traceId)
         {
-            var epoch = traceId.Substring(0, EpochHexDigits);
+            var span = traceId.AsSpan();
+            var epoch = span.Slice(0, EpochHexDigits);
 
             if (_validateTraceId)
             {
@@ -75,7 +76,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             sb.Append(TraceIdDelimiter);
             sb.Append(epoch);
             sb.Append(TraceIdDelimiter);
-            sb.Append(traceId.Substring(EpochHexDigits));
+            sb.Append(span.Slice(EpochHexDigits));
 
             return sb.ToString();
         }
@@ -105,9 +106,6 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 i += 2;
             }
             
-            if (byteLo == 0xFF)
-                i++;
- 
             return (byteLo | byteHi) != 0xFF;
         }
         

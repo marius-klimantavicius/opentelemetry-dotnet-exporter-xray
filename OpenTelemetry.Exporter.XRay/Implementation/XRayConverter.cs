@@ -20,12 +20,15 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         private const double TicksPerSecond = TicksPerMillisecond * 1000;
 
         private const string DefaultSegmentName = "span";
+        private const string ResourceKeyPrefix = "otel.resource.";
+        private const string AnnotationResourceKeyPrefix = "otel_resource_";
         private const int MaxSegmentNameLength = 200;
 
         private static readonly Regex _invalidSpanCharacters = new Regex(@"[^ 0-9\p{L}_.:/%&#=+,\\\-@]", RegexOptions.Compiled);
         private static readonly Regex _invalidAnnotationCharacters = new Regex(@"[^0-9a-zA-Z]", RegexOptions.Compiled);
 
         private readonly HashSet<string> _indexedAttributes;
+        private readonly HashSet<string> _indexedResourceAttributes;
         private readonly bool _indexAllAttributes;
         private readonly bool _indexActivityNames;
         private readonly bool _validateTraceId;
@@ -36,6 +39,11 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         public XRayConverter(IEnumerable<string> indexedAttributes, bool indexAllAttributes, bool indexActivityNames, bool validateTraceId = false)
         {
             _indexedAttributes = new HashSet<string>(indexedAttributes ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
+            _indexedResourceAttributes = new HashSet<string>(
+                (indexedAttributes ?? Enumerable.Empty<string>())
+                    .Where(s => s.StartsWith(ResourceKeyPrefix, StringComparison.Ordinal))
+                    .Select(s => s.Substring(ResourceKeyPrefix.Length))
+                , StringComparer.Ordinal);
             _indexAllAttributes = indexAllAttributes;
             _indexActivityNames = indexActivityNames;
             _validateTraceId = validateTraceId;
@@ -263,14 +271,13 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 var resourceAttributes = context.ResourceAttributes;
                 foreach (var item in resourceAttributes)
                 {
-                    var key = "otel.resource." + item.Key;
                     var annoVal = item.Value;
-                    var indexed = _indexAllAttributes || _indexedAttributes.Contains(key);
+                    var indexed = _indexAllAttributes || _indexedResourceAttributes.Contains(item.Key);
                     if ((!indexed || !IsAnnotationValue(annoVal)) && IsMetadataValue(annoVal))
                     {
                         hasMetadata = WriteMetadataObject(hasMetadata, writer);
 
-                        writer.WritePropertyName(key);
+                        WriteMetadataResourceKey(writer, item.Key);
                         WriteValue(writer, annoVal);
                     }
                 }
@@ -320,15 +327,13 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 var resourceAttributes = context.ResourceAttributes;
                 foreach (var item in resourceAttributes)
                 {
-                    var key = "otel.resource." + item.Key;
                     var annoVal = item.Value;
-                    var indexed = _indexAllAttributes || _indexedAttributes.Contains(key);
+                    var indexed = _indexAllAttributes || _indexedResourceAttributes.Contains(item.Key);
                     if (indexed && IsAnnotationValue(annoVal))
                     {
                         hasAnnotations = WriteAnnotationsObject(hasAnnotations, writer);
 
-                        key = FixAnnotationKey(key);
-                        writer.WritePropertyName(key);
+                        WriteAnnotationResourceKey(writer, item.Key);
                         WriteValue(writer, annoVal);
                     }
                 }
@@ -371,6 +376,49 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 }
 
                 return true;
+            }
+        }
+
+        private static void WriteMetadataResourceKey(Utf8JsonWriter writer, string key)
+        {
+            if (key.Length > 24)
+            {
+                var finalKey = ResourceKeyPrefix + key;
+                writer.WritePropertyName(finalKey);
+            }
+            else
+            {
+                Span<char> finalKey = stackalloc char[ResourceKeyPrefix.Length + key.Length];
+                ResourceKeyPrefix.AsSpan().CopyTo(finalKey);
+                key.AsSpan().CopyTo(finalKey.Slice(ResourceKeyPrefix.Length));
+                writer.WritePropertyName(finalKey);
+            }
+        }
+
+        private static unsafe void WriteAnnotationResourceKey(Utf8JsonWriter writer, string key)
+        {
+            if (key.Length > 24)
+            {
+                var finalKey = FixAnnotationKey(AnnotationResourceKeyPrefix + key);
+                writer.WritePropertyName(finalKey);
+            }
+            else
+            {
+                Span<char> finalKey = stackalloc char[AnnotationResourceKeyPrefix.Length + key.Length];
+                AnnotationResourceKeyPrefix.AsSpan().CopyTo(finalKey);
+                key.AsSpan().CopyTo(finalKey.Slice(AnnotationResourceKeyPrefix.Length));
+
+                for (var i = 0; i < finalKey.Length; i++)
+                {
+                    var c = finalKey[i];
+                    var isValidAnnotationChar = c >= '0' && c <= '9'
+                        || c >= 'a' && c <= 'z'
+                        || c >= 'A' && c <= 'Z';
+                    if (!isValidAnnotationChar)
+                        finalKey[i] = '_';
+                }
+
+                writer.WritePropertyName(finalKey);
             }
         }
 
