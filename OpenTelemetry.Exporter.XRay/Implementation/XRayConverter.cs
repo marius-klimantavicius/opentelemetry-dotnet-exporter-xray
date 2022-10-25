@@ -379,21 +379,52 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             if (value == null)
                 return false;
 
-            var type = value.GetType();
-            for (var i = 0; i < SupportedPrimitiveTypes.Length; i++)
-            {
-                if (ReferenceEquals(type, SupportedPrimitiveTypes[i]))
-                    return true;
-            }
+            // Check for supported primitive types
+            if (value is string
+                || value is double
+                || value is long
+                || value is int
+                || value is bool
+                || value is DateTime
+                || value is Guid
+                || value is float
+                || value is byte
+                || value is decimal
+                || value is short
+                || value is sbyte
+                || value is ushort
+                || value is uint
+                || value is ulong
+                || value is char
+                || value is DateTimeOffset
+                || value is Uri
+#if NET6_0_OR_GREATER
+                || value is TimeSpan
+                || value is Version
+                || value is JsonValue
+                || value is DateOnly
+                || value is TimeOnly
+#endif
+               )
+                return true;
 
             if (value is JsonElement element)
             {
-                if (element.ValueKind != JsonValueKind.Array
-                    && element.ValueKind != JsonValueKind.Object
-                    && element.ValueKind != JsonValueKind.Null
-                    && element.ValueKind != JsonValueKind.Undefined)
-                    return true;
+                switch (element.ValueKind)
+                {
+                    case JsonValueKind.Array:
+                    case JsonValueKind.Object:
+                    case JsonValueKind.Undefined:
+                    case JsonValueKind.Null:
+                        return false;
+                    default:
+                        return true;
+                }
             }
+
+            var type = value.GetType();
+            if (type.IsEnum)
+                return true;
 
             return false;
         }
@@ -411,8 +442,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 || value is JsonDocument
                 || value is JsonElement
 #if NET6_0_OR_GREATER
-                || value is JsonArray
-                || value is JsonObject
+                || value is JsonNode
 #endif
                 ;
         }
@@ -421,38 +451,5 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         {
             JsonSerializer.Serialize(writer, value);
         }
-
-        private static readonly Type[] SupportedPrimitiveTypes = new[]
-        {
-            // The most common ones go to top
-            typeof(string),
-            typeof(double),
-            typeof(long),
-            typeof(int),
-            typeof(bool),
-
-            typeof(byte),
-            typeof(decimal),
-            typeof(short),
-            typeof(sbyte),
-            typeof(float),
-            typeof(ushort),
-            typeof(uint),
-            typeof(ulong),
-
-            typeof(char),
-            typeof(DateTime),
-            typeof(DateTimeOffset),
-            typeof(Guid),
-            typeof(Uri),
-            
-#if NET6_0_OR_GREATER
-            typeof(TimeSpan),
-            typeof(Version),
-            typeof(JsonValue),
-            typeof(DateOnly),
-            typeof(TimeOnly),
-#endif
-        };
     }
 }
