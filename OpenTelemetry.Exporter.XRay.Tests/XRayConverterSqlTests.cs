@@ -9,7 +9,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
         [Fact]
         public void Should_contain_database_url()
         {
-            var activity = new Activity("Test");
+            var activity = new Activity("users.findUnique");
 
             activity.SetTag(XRayConventions.AttributeDbSystem, "mysql");
             activity.SetTag(XRayConventions.AttributeDbName, "customers");
@@ -21,13 +21,14 @@ namespace OpenTelemetry.Exporter.XRay.Tests
 
             var segment = ConvertDefault(activity);
             Assert.NotNull(segment.Sql);
-            Assert.Equal("mysql://db.example.com:3306/customers", segment.Sql.Url);
+            Assert.Equal("mysql://db.example.com:3306/customers", segment.Sql.ConnectionString);
+            Assert.Equal("users.findUnique", segment.Sql.Url);
         }
 
         [Fact]
         public void Should_not_contain_sql_for_non_sql_database()
         {
-            var activity = new Activity("Test");
+            var activity = new Activity("users.findUnique");
 
             activity.SetTag(XRayConventions.AttributeDbSystem, "redis");
             activity.SetTag(XRayConventions.AttributeDbName, "0");
@@ -44,7 +45,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
         [Fact]
         public void Should_generate_database_url()
         {
-            var activity = new Activity("Test");
+            var activity = new Activity("users.findUnique");
 
             activity.SetTag(XRayConventions.AttributeDbSystem, "postgresql");
             activity.SetTag(XRayConventions.AttributeDbName, "customers");
@@ -56,7 +57,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
 
             var segment = ConvertDefault(activity);
             Assert.NotNull(segment.Sql);
-            Assert.Equal("localhost/customers", segment.Sql.Url);
+            Assert.Equal("users.findUnique", segment.Sql.Url);
         }
     }
 }

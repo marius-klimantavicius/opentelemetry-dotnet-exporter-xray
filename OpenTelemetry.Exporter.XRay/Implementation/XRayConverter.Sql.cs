@@ -24,6 +24,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         private void WriteSql(in XRayConverterContext context)
         {
             var dbUrl = default(string);
+            var dbConnectionString = default(string);
             var dbSystem = default(string);
             var dbInstance = default(string);
             var dbStatement = default(string);
@@ -31,7 +32,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
 
             var spanTags = context.SpanTags;
             if (spanTags.TryGetAttributeDbConnectionString(out var value))
-                dbUrl = value.AsString();
+                dbConnectionString = value.AsString();
 
             if (spanTags.TryGetAttributeDbSystem(out value))
                 dbSystem = value.AsString();
@@ -48,14 +49,22 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             if (!_sqlSystems.Contains(dbSystem))
                 return;
 
-            if (string.IsNullOrEmpty(dbUrl))
-                dbUrl = "localhost";
+            // Despite what the X-Ray documents say, having the DB connection string
+            // set as the URL value of the segment is not useful. So let's use the
+            // current span name instead
+            dbUrl = context.Span.DisplayName;
 
+            // Let's keep the original format for connection_string
+            if (string.IsNullOrEmpty(dbConnectionString))
+                dbConnectionString = "localhost";
+            
             var writer = context.Writer;
             writer.WritePropertyName(XRayField.Sql);
             writer.WriteStartObject();
 
-            WriteDatabaseUrl(writer, dbUrl, dbInstance);
+
+            writer.WriteString(XRayField.Url, dbUrl);
+            WriteDatabaseConnectionString(writer, dbConnectionString, dbInstance);
             if (dbSystem != null)
                 writer.WriteString(XRayField.DatabaseType, dbSystem);
             if (dbUser != null)
@@ -66,14 +75,14 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             writer.WriteEndObject();
         }
 
-        private void WriteDatabaseUrl(Utf8JsonWriter writer, string dbUrl, string dbInstance)
+        private void WriteDatabaseConnectionString(Utf8JsonWriter writer, string dbUrl, string dbInstance)
         {
             var sb = new ValueStringBuilder(stackalloc char[128]);
             sb.Append(dbUrl);
             sb.Append('/');
             sb.Append(dbInstance);
 
-            writer.WriteString(XRayField.Url, sb.AsSpan());
+            writer.WriteString(XRayField.ConnectionString, sb.AsSpan());
             sb.Dispose();
         }
     }

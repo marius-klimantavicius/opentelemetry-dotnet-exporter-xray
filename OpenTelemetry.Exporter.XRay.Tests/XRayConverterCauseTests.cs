@@ -656,22 +656,13 @@ Caused by: java.lang.IllegalArgumentException: bad argument
         {
             var exceptionType = "System.Exception";
             var message = "test";
-            var stacktrace = @"System.Exception: test
-	at integration_test_app.Controllers.AppController.OutgoingHttp() in /Users/bhautip/Documents/otel-dotnet/aws-otel-dotnet/integration-test-app/integration-test-app/Controllers/AppController.cs:line 21
-	at lambda_method(Closure , Object , Object[] )
-	at Microsoft.Extensions.Internal.ObjectMethodExecutor.Execute(Object target, Object[] parameters)
-	at Microsoft.AspNetCore.Mvc.Infrastructure.ActionMethodExecutor.SyncObjectResultExecutor.Execute(IActionResultTypeMapper mapper, ObjectMethodExecutor executor, Object controller, Object[] arguments)
-	at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.<InvokeActionMethodAsync>g__Logged|12_1(ControllerActionInvoker invoker)
-	at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.<InvokeNextActionFilterAsync>g__Awaited|10_0(ControllerActionInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
-	at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.Rethrow(ActionExecutedContextSealed context)
-	at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.Next(State& next, Scope& scope, Object& state, Boolean& isCompleted)
-	at Microsoft.AspNetCore.Mvc.Infrastructure.ControllerActionInvoker.InvokeInnerFilterAsync()
-	--- End of stack trace from previous location where exception was thrown ---
-	at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeFilterPipelineAsync>g__Awaited|19_0(ResourceInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)
-	at Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeAsync>g__Logged|17_1(ResourceInvoker invoker)
-	at Microsoft.AspNetCore.Routing.EndpointMiddleware.<Invoke>g__AwaitRequestTask|6_0(Endpoint endpoint, Task requestTask, ILogger logger)
-	at Microsoft.AspNetCore.Authorization.AuthorizationMiddleware.Invoke(HttpContext context)
-	at Microsoft.AspNetCore.Diagnostics.DeveloperExceptionPageMiddleware.Invoke(HttpContext context)";
+            var stacktrace = "System.Exception: Second exception happened\r\n" +
+                    " ---> System.Exception: Error happened when get weatherforecasts\r\n" +
+                    "   at TestAppApi.Services.ForecastService.GetWeatherForecasts() in D:\\Users\\foobar\\test-app\\TestAppApi\\Services\\ForecastService.cs:line 9\r\n" +
+                    "   --- End of inner exception stack trace ---\r\n" +
+                    "   at TestAppApi.Services.ForecastService.GetWeatherForecasts() in D:\\Users\\foobar\\test-app\\TestAppApi\\Services\\ForecastService.cs:line 12\r\n" +
+                    "   at TestAppApi.Controllers.WeatherForecastController.Get() in D:\\Users\\foobar\\test-app\\TestAppApi\\Controllers\\WeatherForecastController.cs:line 31"
+                ;
 
             var parsedExceptions = ParseException(exceptionType, message, stacktrace, "dotnet");
             Assert.Collection(parsedExceptions,
@@ -682,13 +673,13 @@ Caused by: java.lang.IllegalArgumentException: bad argument
                     Assert.Equal(message, exception.Message);
 
                     var stack = exception.Stack.ToList();
-                    Assert.Equal(14, stack.Count);
-                    Assert.Equal("integration_test_app.Controllers.AppController.OutgoingHttp()", stack[0].Label);
-                    Assert.Equal("/Users/bhautip/Documents/otel-dotnet/aws-otel-dotnet/integration-test-app/integration-test-app/Controllers/AppController.cs", stack[0].Path);
-                    Assert.Equal(21, stack[0].Line);
-                    Assert.Equal("Microsoft.AspNetCore.Mvc.Infrastructure.ResourceInvoker.<InvokeFilterPipelineAsync>g__Awaited|19_0(ResourceInvoker invoker, Task lastTask, State next, Scope scope, Object state, Boolean isCompleted)", stack[9].Label);
-                    Assert.Equal("", stack[9].Path);
-                    Assert.Equal(0, stack[9].Line.GetValueOrDefault());
+                    Assert.Equal(3, stack.Count);
+                    Assert.Equal("TestAppApi.Services.ForecastService.GetWeatherForecasts()", stack[0].Label);
+                    Assert.Equal("D:\\Users\\foobar\\test-app\\TestAppApi\\Services\\ForecastService.cs", stack[0].Path);
+                    Assert.Equal(9, stack[0].Line);
+                    Assert.Equal("TestAppApi.Controllers.WeatherForecastController.Get()", stack[2].Label);
+                    Assert.Equal("D:\\Users\\foobar\\test-app\\TestAppApi\\Controllers\\WeatherForecastController.cs", stack[2].Path);
+                    Assert.Equal(31, stack[2].Line);
                 });
         }
 
@@ -723,7 +714,7 @@ Caused by: java.lang.IllegalArgumentException: bad argument
 
         // PORT: Port php later
         // PORT: Port go later
-        
+
         private IEnumerable<XRayException> ParseException(string exceptionType, string message, string stacktrace, string language)
         {
             var span = ConstructExceptionServerSpan(new Dictionary<string, object>(), ActivityStatusCode.Error);

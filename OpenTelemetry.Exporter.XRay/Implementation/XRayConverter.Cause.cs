@@ -275,19 +275,14 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             var hasStack = false;
             while (line != null)
             {
-                var prefix = -1;
-                if (line.StartsWith("\tat"))
-                    prefix = 4;
-                else if (line.StartsWith("   at"))
-                    prefix = 6;
-
-                if (prefix >= 0)
+                line = line.Trim();
+                if (line.StartsWith("at ", StringComparison.Ordinal))
                 {
                     var index = line.IndexOf(" in ", StringComparison.Ordinal);
                     if (index >= 0)
                     {
                         var parts = line.Split(" in ");
-                        var label = parts[0][prefix..];
+                        var label = parts[0]["at ".Length..];
                         var path = parts[1];
                         var lineNumber = 0;
 
@@ -309,7 +304,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                         var idx = line.LastIndexOf(')');
                         if (idx >= 0)
                         {
-                            var label = line[prefix..(idx + 1)];
+                            var label = line["at ".Length..(idx + 1)];
                             hasStack = WriteExceptionStack(writer, hasStack, "", label, 0);
                         }
                     }
