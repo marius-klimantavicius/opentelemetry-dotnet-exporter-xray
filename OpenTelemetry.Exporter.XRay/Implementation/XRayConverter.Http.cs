@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using System.Text.Json;
 
 namespace OpenTelemetry.Exporter.XRay.Implementation
 {
@@ -10,7 +11,6 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         {
             var requestXForwardedFor = default(bool?);
             var requestMethod = default(string);
-            var requestUrl = default(string);
             var requestUserAgent = default(string);
             var requestClientIp = default(string);
             var responseStatus = default(long?);
@@ -126,46 +126,45 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             }
 
             var writer = context.Writer;
-            writer.WritePropertyName(XRayWriter.Http);
+            writer.WritePropertyName(XRayField.Http);
             writer.WriteStartObject();
-
-            if (hasHttpRequestUrlAttributes)
-            {
-                if (context.Span.Kind == ActivityKind.Server)
-                    requestUrl = ConstructServerUrl(ref urlParts);
-                else
-                    requestUrl = ConstructClientUrl(ref urlParts);
-            }
 
             if (spanTags.TryGetAttributeHttpResponseContentLength(out value) && value != null)
                 responseContentLength = value.AsInt();
             else
                 responseContentLength = ExtractResponseSizeFromEvents(context);
 
-            writer.WritePropertyName(XRayWriter.Request);
+            writer.WritePropertyName(XRayField.Request);
             writer.WriteStartObject();
 
             if (requestXForwardedFor != null)
-                writer.WriteBoolean(XRayWriter.XForwardedFor, requestXForwardedFor.GetValueOrDefault());
+                writer.WriteBoolean(XRayField.XForwardedFor, requestXForwardedFor.GetValueOrDefault());
             if (requestMethod != null)
-                writer.WriteString(XRayWriter.Method, requestMethod);
-            if (requestUrl != null)
-                writer.WriteString(XRayWriter.Url, requestUrl);
+                writer.WriteString(XRayField.Method, requestMethod);
+
+            if (hasHttpRequestUrlAttributes)
+            {
+                if (context.Span.Kind == ActivityKind.Server)
+                    WriteServerUrl(writer, ref urlParts);
+                else
+                    WriteClientUrl(writer, ref urlParts);
+            }
+
             if (requestUserAgent != null)
-                writer.WriteString(XRayWriter.UserAgent, requestUserAgent);
+                writer.WriteString(XRayField.UserAgent, requestUserAgent);
             if (requestClientIp != null)
-                writer.WriteString(XRayWriter.ClientIp, requestClientIp);
+                writer.WriteString(XRayField.ClientIp, requestClientIp);
 
             writer.WriteEndObject();
 
-            writer.WritePropertyName(XRayWriter.Response);
+            writer.WritePropertyName(XRayField.Response);
             writer.WriteStartObject();
 
             if (responseStatus != null)
-                writer.WriteNumber(XRayWriter.Status, responseStatus.GetValueOrDefault());
+                writer.WriteNumber(XRayField.Status, responseStatus.GetValueOrDefault());
 
             if (responseContentLength != null)
-                writer.WriteNumber(XRayWriter.ContentLength, responseContentLength.GetValueOrDefault());
+                writer.WriteNumber(XRayField.ContentLength, responseContentLength.GetValueOrDefault());
 
             writer.WriteEndObject();
 
@@ -222,10 +221,15 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             return null;
         }
 
-        private static string ConstructClientUrl(ref XRayHttpUrlParts urlParts)
+        private static void WriteClientUrl(Utf8JsonWriter writer, ref XRayHttpUrlParts urlParts)
         {
             if (urlParts.AttributeHttpUrl.TryGetValue(out var url))
-                return url;
+            {
+                if (!string.IsNullOrEmpty(url))
+                    writer.WriteString(XRayField.Url, url);
+
+                return;
+            }
 
             if (!urlParts.AttributeHttpScheme.TryGetValue(out var scheme))
                 scheme = "http";
@@ -255,13 +259,19 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             else
                 sb.Append('/');
 
-            return sb.ToString();
+            writer.WriteString(XRayField.Url, sb.AsSpan());
+            sb.Dispose();
         }
 
-        private static string ConstructServerUrl(ref XRayHttpUrlParts urlParts)
+        private static void WriteServerUrl(Utf8JsonWriter writer, ref XRayHttpUrlParts urlParts)
         {
             if (urlParts.AttributeHttpUrl.TryGetValue(out var url))
-                return url;
+            {
+                if (!string.IsNullOrEmpty(url))
+                    writer.WriteString(XRayField.Url, url);
+
+                return;
+            }
 
             if (!urlParts.AttributeHttpScheme.TryGetValue(out var scheme))
                 scheme = "http";
@@ -294,7 +304,8 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             else
                 sb.Append('/');
 
-            return sb.ToString();
+            writer.WriteString(XRayField.Url, sb.AsSpan());
+            sb.Dispose();
         }
     }
 }

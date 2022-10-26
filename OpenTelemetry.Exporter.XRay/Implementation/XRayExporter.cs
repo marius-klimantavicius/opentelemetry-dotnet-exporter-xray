@@ -9,6 +9,13 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
     internal class XRayExporter : BaseExporter<Activity>
     {
         private const int MaxDocumentSize = 62 * 1024;
+        private const int MaxDocumentCount = 50;
+
+        [ThreadStatic]
+        private static List<string> _listCache;
+
+        [ThreadStatic]
+        private static PutTraceSegmentsRequest _requestCache;
         
         private readonly IAmazonXRay _client;
         private readonly XRayConverter _converter;
@@ -30,8 +37,8 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             try
             {
                 var resource = ParentProvider.GetResource();
-                var documentList = new List<string>();
-                var request = new PutTraceSegmentsRequest();
+                var documentList = _listCache ?? new List<string>(MaxDocumentCount);
+                var request = _requestCache ?? new PutTraceSegmentsRequest();
 
                 var totalLength = 0;
                 foreach (var item in batch)
@@ -40,7 +47,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                     if (document == null)
                         continue;
 
-                    if (totalLength + document.Length > MaxDocumentSize || documentList.Count >= 50)
+                    if (totalLength + document.Length > MaxDocumentSize || documentList.Count >= MaxDocumentCount)
                     {
                         request.TraceSegmentDocuments = documentList;
                         _client.PutTraceSegmentsAsync(request).GetAwaiter().GetResult();
@@ -60,6 +67,11 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                     
                     documentList.Clear();
                 }
+
+                request.TraceSegmentDocuments = null;
+                
+                _listCache = documentList;
+                _requestCache = request;
 
                 return ExportResult.Success;
             }

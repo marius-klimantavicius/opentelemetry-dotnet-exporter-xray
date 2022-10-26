@@ -154,71 +154,71 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 return;
 
             var writer = context.Writer;
-            writer.WritePropertyName(XRayWriter.Aws);
+            writer.WritePropertyName(XRayField.Aws);
             writer.WriteStartObject();
 
             if (account != null)
-                writer.WriteString(XRayWriter.AccountId, account);
+                writer.WriteString(XRayField.AccountId, account);
 
             if (service == XRayAwsConventions.AttributeCloudPlatformAwsEc2 || !string.IsNullOrEmpty(hostId))
             {
-                writer.WritePropertyName(XRayWriter.Ec2);
+                writer.WritePropertyName(XRayField.Ec2);
                 writer.WriteStartObject();
 
-                writer.WriteString(XRayWriter.InstanceId, hostId);
-                writer.WriteString(XRayWriter.AvailabilityZone, zone);
-                writer.WriteString(XRayWriter.InstanceSize, hostType);
-                writer.WriteString(XRayWriter.AmiId, amiId);
+                writer.WriteString(XRayField.InstanceId, hostId);
+                writer.WriteString(XRayField.AvailabilityZone, zone);
+                writer.WriteString(XRayField.InstanceSize, hostType);
+                writer.WriteString(XRayField.AmiId, amiId);
 
                 writer.WriteEndObject();
             }
 
             if (service == XRayAwsConventions.AttributeCloudPlatformAwsEcs)
             {
-                writer.WritePropertyName(XRayWriter.Ecs);
+                writer.WritePropertyName(XRayField.Ecs);
                 writer.WriteStartObject();
 
                 if (container != null)
-                    writer.WriteString(XRayWriter.ContainerName, container);
+                    writer.WriteString(XRayField.ContainerName, container);
                 if (containerId != null)
-                    writer.WriteString(XRayWriter.ContainerId, containerId);
+                    writer.WriteString(XRayField.ContainerId, containerId);
                 if (zone != null)
-                    writer.WriteString(XRayWriter.AvailabilityZone, zone);
+                    writer.WriteString(XRayField.AvailabilityZone, zone);
                 if (containerArn != null)
-                    writer.WriteString(XRayWriter.ContainerArn, containerArn);
+                    writer.WriteString(XRayField.ContainerArn, containerArn);
                 if (clusterArn != null)
-                    writer.WriteString(XRayWriter.ClusterArn, clusterArn);
+                    writer.WriteString(XRayField.ClusterArn, clusterArn);
                 if (taskArn != null)
-                    writer.WriteString(XRayWriter.TaskArn, taskArn);
+                    writer.WriteString(XRayField.TaskArn, taskArn);
                 if (taskFamily != null)
-                    writer.WriteString(XRayWriter.TaskFamily, taskFamily);
+                    writer.WriteString(XRayField.TaskFamily, taskFamily);
                 if (launchType != null)
-                    writer.WriteString(XRayWriter.LaunchType, launchType);
+                    writer.WriteString(XRayField.LaunchType, launchType);
 
                 writer.WriteEndObject();
             }
 
             if (service == XRayAwsConventions.AttributeCloudPlatformAwsElasticBeanstalk && !string.IsNullOrEmpty(deployId))
             {
-                writer.WritePropertyName(XRayWriter.Beanstalk);
+                writer.WritePropertyName(XRayField.Beanstalk);
                 writer.WriteStartObject();
 
                 long.TryParse(deployId, NumberStyles.Integer, CultureInfo.InvariantCulture, out var deployNum);
-                writer.WriteString(XRayWriter.Environment, @namespace);
-                writer.WriteNumber(XRayWriter.DeploymentId, deployNum);
-                writer.WriteString(XRayWriter.VersionLabel, versionLabel);
+                writer.WriteString(XRayField.Environment, @namespace);
+                writer.WriteNumber(XRayField.DeploymentId, deployNum);
+                writer.WriteString(XRayField.VersionLabel, versionLabel);
 
                 writer.WriteEndObject();
             }
 
             if (service == XRayAwsConventions.AttributeCloudPlatformAwsEks || !string.IsNullOrEmpty(clusterName))
             {
-                writer.WritePropertyName(XRayWriter.Eks);
+                writer.WritePropertyName(XRayField.Eks);
                 writer.WriteStartObject();
 
-                writer.WriteString(XRayWriter.ClusterName, clusterName);
-                writer.WriteString(XRayWriter.Pod, podUid);
-                writer.WriteString(XRayWriter.ContainerId, containerId);
+                writer.WriteString(XRayField.ClusterName, clusterName);
+                writer.WriteString(XRayField.Pod, podUid);
+                writer.WriteString(XRayField.ContainerId, containerId);
 
                 writer.WriteEndObject();
             }
@@ -234,25 +234,25 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             else
                 sdk = sdkName;
 
-            writer.WritePropertyName(XRayWriter.XRay);
+            writer.WritePropertyName(XRayField.XRay);
             writer.WriteStartObject();
             if (sdk != null)
-                writer.WriteString(XRayWriter.Sdk, sdk);
+                writer.WriteString(XRayField.Sdk, sdk);
             if (sdkVersion != null)
-                writer.WriteString(XRayWriter.SdkVersion, sdkVersion);
-            writer.WriteBoolean(XRayWriter.AutoInstrumentation, !string.IsNullOrEmpty(autoVersion));
+                writer.WriteString(XRayField.SdkVersion, sdkVersion);
+            writer.WriteBoolean(XRayField.AutoInstrumentation, !string.IsNullOrEmpty(autoVersion));
             writer.WriteEndObject();
 
             if (operation != null)
-                writer.WriteString(XRayWriter.Operation, operation);
+                writer.WriteString(XRayField.Operation, operation);
             if (remoteRegion != null)
-                writer.WriteString(XRayWriter.RemoteRegion, remoteRegion);
+                writer.WriteString(XRayField.RemoteRegion, remoteRegion);
             if (requestId != null)
-                writer.WriteString(XRayWriter.RequestId, requestId);
+                writer.WriteString(XRayField.RequestId, requestId);
             if (queueUrl != null)
-                writer.WriteString(XRayWriter.QueueUrl, queueUrl);
+                writer.WriteString(XRayField.QueueUrl, queueUrl);
             if (tableName != null)
-                writer.WriteString(XRayWriter.TableName, tableName);
+                writer.WriteString(XRayField.TableName, tableName);
 
             writer.WriteEndObject();
         }
@@ -264,7 +264,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             {
                 if (!hasLogs)
                 {
-                    writer.WritePropertyName(XRayWriter.CloudWatchLogs);
+                    writer.WritePropertyName(XRayField.CloudWatchLogs);
                     writer.WriteStartArray();
                     hasLogs = true;
                 }
@@ -272,12 +272,12 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 writer.WriteStartObject();
                 if (isArn)
                 {
-                    writer.WriteString(XRayWriter.Arn, item.AsString());
-                    writer.WriteString(XRayWriter.LogGroup, ParseLogGroup(item.AsString()));
+                    writer.WriteString(XRayField.Arn, item.AsString());
+                    WriteLogGroupFromArn(writer, item.AsString());
                 }
                 else
                 {
-                    writer.WriteString(XRayWriter.LogGroup, item.AsString());
+                    writer.WriteString(XRayField.LogGroup, item.AsString());
                 }
 
                 writer.WriteEndObject();
@@ -289,23 +289,28 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             return hasLogs;
         }
 
-        private string ParseLogGroup(string arn)
+        private void WriteLogGroupFromArn(Utf8JsonWriter writer, ReadOnlySpan<char> arn)
         {
-            var span = arn.AsSpan();
+            writer.WritePropertyName(XRayField.LogGroup);
+
+            var span = arn;
             for (var i = 0; i < 6; i++)
             {
                 var index = span.IndexOf(':');
                 if (index < 0)
-                    return arn;
+                {
+                    writer.WriteStringValue(arn);
+                    return;
+                }
 
                 span = span.Slice(index + 1);
             }
 
             var lastIndex = span.IndexOf(':');
-            if (lastIndex < 0)
-                return new string(span);
+            if (lastIndex >= 0)
+                span = span.Slice(0, lastIndex);
 
-            return new string(span.Slice(0, lastIndex));
+            writer.WriteStringValue(span);
         }
     }
 }

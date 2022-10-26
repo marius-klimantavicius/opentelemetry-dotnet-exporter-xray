@@ -41,10 +41,10 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 if (resourceAttributes.TryGetAttributeTelemetrySdkLanguage(out var value))
                     language = value.AsString();
 
-                writer.WritePropertyName(XRayWriter.Cause);
+                writer.WritePropertyName(XRayField.Cause);
                 writer.WriteStartObject();
 
-                writer.WritePropertyName(XRayWriter.Exceptions);
+                writer.WritePropertyName(XRayField.Exceptions);
                 writer.WriteStartArray();
 
                 foreach (var ev in span.Events)
@@ -90,16 +90,16 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                     var id = NewSegmentId();
                     var hexId = id.ToHexString();
 
-                    writer.WritePropertyName(XRayWriter.Cause);
+                    writer.WritePropertyName(XRayField.Cause);
                     writer.WriteStartObject();
 
-                    writer.WritePropertyName(XRayWriter.Exceptions);
+                    writer.WritePropertyName(XRayField.Exceptions);
                     writer.WriteStartArray();
 
                     writer.WriteStartObject();
 
-                    writer.WriteString(XRayWriter.Id, hexId);
-                    writer.WriteString(XRayWriter.Message, message);
+                    writer.WriteString(XRayField.Id, hexId);
+                    writer.WriteString(XRayField.Message, message);
 
                     writer.WriteEndObject();
 
@@ -136,19 +136,19 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 context.SpanTags.ResetConsume();
             }
 
-            writer.WriteBoolean(XRayWriter.Error, isError);
-            writer.WriteBoolean(XRayWriter.Throttle, isThrottle);
-            writer.WriteBoolean(XRayWriter.Fault, isFault);
+            writer.WriteBoolean(XRayField.Error, isError);
+            writer.WriteBoolean(XRayField.Throttle, isThrottle);
+            writer.WriteBoolean(XRayField.Fault, isFault);
         }
 
         private void WriteException(Utf8JsonWriter writer, string exceptionType, string message, string stacktrace, string language)
         {
             writer.WriteStartObject();
-            writer.WriteString(XRayWriter.Id, NewSegmentId().ToHexString());
+            writer.WriteString(XRayField.Id, NewSegmentId().ToHexString());
             if (exceptionType != null)
-                writer.WriteString(XRayWriter.Type, exceptionType);
+                writer.WriteString(XRayField.Type, exceptionType);
             if (message != null)
-                writer.WriteString(XRayWriter.Message, message);
+                writer.WriteString(XRayField.Message, message);
 
             if (!string.IsNullOrEmpty(stacktrace))
             {
@@ -238,15 +238,15 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                     hasStack = false;
 
                     var nextId = NewSegmentId().ToHexString();
-                    writer.WriteString(XRayWriter.Cause, nextId);
+                    writer.WriteString(XRayField.Cause, nextId);
                     writer.WriteEndObject(); // end previous exception
 
                     writer.WriteStartObject();
-                    writer.WriteString(XRayWriter.Id, nextId);
+                    writer.WriteString(XRayField.Id, nextId);
                     if (causeType != null)
-                        writer.WriteString(XRayWriter.Type, causeType);
+                        writer.WriteString(XRayField.Type, causeType);
                     if (causeMessage != null)
-                        writer.WriteString(XRayWriter.Message, causeMessage);
+                        writer.WriteString(XRayField.Message, causeMessage);
 
                     continue;
                 }
@@ -328,17 +328,17 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         {
             if (!hasStack)
             {
-                writer.WritePropertyName(XRayWriter.Stack);
+                writer.WritePropertyName(XRayField.Stack);
                 writer.WriteStartArray();
             }
 
             writer.WriteStartObject();
             if (path != null)
-                writer.WriteString(XRayWriter.Path, path);
+                writer.WriteString(XRayField.Path, path);
             if (label != null)
-                writer.WriteString(XRayWriter.Label, label);
+                writer.WriteString(XRayField.Label, label);
             if (lineNumber != 0)
-                writer.WriteNumber(XRayWriter.Line, lineNumber);
+                writer.WriteNumber(XRayField.Line, lineNumber);
             writer.WriteEndObject();
 
             return true;

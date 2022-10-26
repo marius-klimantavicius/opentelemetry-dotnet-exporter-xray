@@ -71,6 +71,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             var segmentDocument = converter.Convert(resource, span);
             var segment = JsonSerializer.Deserialize<XRaySegment>(segmentDocument);
             Assert.NotNull(segment);
+            Assert.Matches("^1-[0-9a-f]{8}-[0-9a-f]{24}", segment.TraceId);
 
             return segment;
         }
@@ -85,6 +86,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             
             var segment = JsonSerializer.Deserialize<XRaySegment>(segmentDocument);
             Assert.NotNull(segment);
+            Assert.Matches("^1-[0-9a-f]{8}-[0-9a-f]{24}", segment.TraceId);
 
             return segment;
         }

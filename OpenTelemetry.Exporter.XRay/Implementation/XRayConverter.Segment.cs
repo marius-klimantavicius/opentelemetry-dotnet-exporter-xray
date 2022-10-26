@@ -1,7 +1,7 @@
 using System;
 using System.Buffers.Binary;
 using System.Diagnostics;
-using System.Runtime.CompilerServices;
+using System.Text.Json;
 
 namespace OpenTelemetry.Exporter.XRay.Implementation
 {
@@ -19,10 +19,10 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // 15
             0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // 31
             0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // 47
-            0x0,  0x1,  0x2,  0x3,  0x4,  0x5,  0x6,  0x7,  0x8,  0x9,  0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // 63
-            0xFF, 0xA,  0xB,  0xC,  0xD,  0xE,  0xF,  0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // 79
+            0x0, 0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // 63
+            0xFF, 0xA, 0xB, 0xC, 0xD, 0xE, 0xF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // 79
             0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // 95
-            0xFF, 0xa,  0xb,  0xc,  0xd,  0xe,  0xf,  0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // 111
+            0xFF, 0xa, 0xb, 0xc, 0xd, 0xe, 0xf, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // 111
             0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // 127
             0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // 143
             0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // 159
@@ -31,9 +31,9 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // 207
             0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // 223
             0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // 239
-            0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,  // 255
+            0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, // 255
         };
-        
+
         internal static string FixSegmentName(string name)
         {
             name = _invalidSpanCharacters.Replace(name, "");
@@ -50,35 +50,62 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             return _invalidAnnotationCharacters.Replace(name, "_");
         }
 
-        private string ToXRayTraceIdFormat(string traceId)
+        private unsafe bool IsValidXRayTraceId(ReadOnlySpan<char> traceId)
         {
-            var span = traceId.AsSpan();
-            var epoch = span.Slice(0, EpochHexDigits);
+            if (!_validateTraceId)
+                return true;
 
-            if (_validateTraceId)
+            if (traceId.Length < 32)
+                return false;
+            
+            var epoch = traceId.Slice(0, EpochHexDigits);
+            var epochValue = default(int);
+            var epochSpan = new Span<byte>(&epochValue, sizeof(int));
+            if (!TryDecodeHex(epoch, epochSpan))
+                return false;
+
+            if (BitConverter.IsLittleEndian)
+                epochValue = BinaryPrimitives.ReverseEndianness(epochValue);
+
+            var epochNow = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            var delta = epochNow - epochValue;
+            return delta <= MaxAge && delta >= -MaxSkew;
+        }
+
+        private unsafe void WriteXRayTraceId(Utf8JsonWriter writer, ReadOnlySpan<char> traceId)
+        {
+            writer.WritePropertyName(XRayField.TraceId);
+
+            if (traceId.Length < EpochHexDigits) // should not happen
             {
-                Span<byte> epochBytes = stackalloc byte[4];
-                if (!TryDecodeHex(epoch, epochBytes))
-                    return null;
-
-                var epochValue = Unsafe.ReadUnaligned<int>(ref epochBytes[0]);
-                if (BitConverter.IsLittleEndian)
-                    epochValue = BinaryPrimitives.ReverseEndianness(epochValue);
-
-                var epochNow = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                var delta = epochNow - epochValue;
-                if (delta > MaxAge || delta < -MaxSkew)
-                    return null;
+                writer.WriteStringValue(traceId);
+                return;
             }
 
-            var sb = new ValueStringBuilder();
-            sb.Append(Version);
-            sb.Append(TraceIdDelimiter);
-            sb.Append(epoch);
-            sb.Append(TraceIdDelimiter);
-            sb.Append(span.Slice(EpochHexDigits));
+            var epoch = traceId.Slice(0, EpochHexDigits);
 
-            return sb.ToString();
+            // This should always be 32
+            if (traceId.Length <= 32)
+            {
+                Span<char> result = stackalloc char[traceId.Length + 3];
+                result[EpochHexDigits + 2] = TraceIdDelimiter;
+                result[0] = Version;
+                result[1] = TraceIdDelimiter;
+                epoch.CopyTo(result.Slice(2));
+                traceId.Slice(EpochHexDigits).CopyTo(result.Slice(EpochHexDigits + 3));
+                writer.WriteStringValue(result);
+            }
+            else
+            {
+                var sb = new ValueStringBuilder();
+                sb.Append(Version);
+                sb.Append(TraceIdDelimiter);
+                sb.Append(epoch);
+                sb.Append(TraceIdDelimiter);
+                sb.Append(traceId.Slice(EpochHexDigits));
+                writer.WriteStringValue(sb.AsSpan());
+                sb.Dispose();
+            }
         }
 
         private static ActivitySpanId NewSegmentId()
@@ -105,10 +132,10 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 bytes[j++] = (byte)((byteHi << 4) | byteLo);
                 i += 2;
             }
-            
+
             return (byteLo | byteHi) != 0xFF;
         }
-        
+
         private static int FromChar(int c)
         {
             return c >= CharToHexLookup.Length ? 0xFF : CharToHexLookup[c];

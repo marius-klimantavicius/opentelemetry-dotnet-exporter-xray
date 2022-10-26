@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace OpenTelemetry.Exporter.XRay.Implementation
 {
-    internal readonly struct XRayWriter
+    internal static class XRayField
     {
         public static readonly JsonEncodedText Name = JsonEncodedText.Encode("name");
         public static readonly JsonEncodedText Id = JsonEncodedText.Encode("id");

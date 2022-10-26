@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json;
 
 namespace OpenTelemetry.Exporter.XRay.Implementation
 {
@@ -50,21 +51,30 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             if (string.IsNullOrEmpty(dbUrl))
                 dbUrl = "localhost";
 
-            var url = dbUrl + "/" + dbInstance;
-
             var writer = context.Writer;
-            writer.WritePropertyName(XRayWriter.Sql);
+            writer.WritePropertyName(XRayField.Sql);
             writer.WriteStartObject();
 
-            writer.WriteString(XRayWriter.Url, url);
+            WriteDatabaseUrl(writer, dbUrl, dbInstance);
             if (dbSystem != null)
-                writer.WriteString(XRayWriter.DatabaseType, dbSystem);
+                writer.WriteString(XRayField.DatabaseType, dbSystem);
             if (dbUser != null)
-                writer.WriteString(XRayWriter.User, dbUser);
+                writer.WriteString(XRayField.User, dbUser);
             if (dbStatement != null)
-                writer.WriteString(XRayWriter.SanitizedQuery, dbStatement);
+                writer.WriteString(XRayField.SanitizedQuery, dbStatement);
 
             writer.WriteEndObject();
+        }
+
+        private void WriteDatabaseUrl(Utf8JsonWriter writer, string dbUrl, string dbInstance)
+        {
+            var sb = new ValueStringBuilder(stackalloc char[128]);
+            sb.Append(dbUrl);
+            sb.Append('/');
+            sb.Append(dbInstance);
+
+            writer.WriteString(XRayField.Url, sb.AsSpan());
+            sb.Dispose();
         }
     }
 }

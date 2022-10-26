@@ -54,6 +54,10 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             var segmentType = default(string);
             var storeResource = true;
 
+            var traceId = span.TraceId.ToHexString();
+            if (!IsValidXRayTraceId(traceId))
+                return null;
+            
             if (span.Kind != ActivityKind.Server
                 && span.ParentSpanId.ToHexString() != "0000000000000000")
             {
@@ -61,14 +65,13 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 storeResource = false;
             }
 
-            _cache ??= new XRayConverterCache();
-
+            var cache = _cache ?? new XRayConverterCache();
             try
             {
-                var resourceAttributes = _cache.ResourceAttributes;
-                var attributes = _cache.SpanTags;
-                var writer = _cache.Writer;
-                var buffer = _cache.Buffer;
+                var resourceAttributes = cache.ResourceAttributes;
+                var attributes = cache.SpanTags;
+                var writer = cache.Writer;
+                var buffer = cache.Buffer;
 
                 resourceAttributes.Initialize(resource.Attributes);
                 attributes.Initialize(span.TagObjects);
@@ -78,33 +81,29 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
 
                 var (name, @namespace) = ResolveName(context);
                 attributes.ResetConsume();
-
-                var traceId = ToXRayTraceIdFormat(span.TraceId.ToString());
-                if (string.IsNullOrEmpty(traceId))
-                    return null;
-
+                
                 var startTime = (span.StartTimeUtc - DateTime.UnixEpoch).TotalSeconds;
                 var endTime = startTime + span.Duration.TotalSeconds;
 
                 writer.WriteStartObject();
-                writer.WriteString(XRayWriter.Name, name);
-                writer.WriteString(XRayWriter.Id, span.SpanId.ToHexString());
-                writer.WriteString(XRayWriter.TraceId, traceId);
-                writer.WriteNumber(XRayWriter.StartTime, startTime);
-                writer.WriteNumber(XRayWriter.EndTime, endTime);
+                writer.WriteString(XRayField.Name, name);
+                writer.WriteString(XRayField.Id, span.SpanId.ToHexString());
+                WriteXRayTraceId(writer, traceId);
+                writer.WriteNumber(XRayField.StartTime, startTime);
+                writer.WriteNumber(XRayField.EndTime, endTime);
                 if (span.ParentSpanId.ToHexString() != "0000000000000000")
-                    writer.WriteString(XRayWriter.ParentId, span.ParentSpanId.ToHexString());
+                    writer.WriteString(XRayField.ParentId, span.ParentSpanId.ToHexString());
                 if (@namespace != null)
-                    writer.WriteString(XRayWriter.Namespace, @namespace);
+                    writer.WriteString(XRayField.Namespace, @namespace);
                 if (segmentType != null)
-                    writer.WriteString(XRayWriter.Type, segmentType);
+                    writer.WriteString(XRayField.Type, segmentType);
 
                 WriteHttp(context);
                 WriteCause(context);
 
                 var origin = DetermineAwsOrigin(context);
                 if (origin != null)
-                    writer.WriteString(XRayWriter.Origin, origin);
+                    writer.WriteString(XRayField.Origin, origin);
 
                 WriteAws(context);
                 WriteService(context);
@@ -118,7 +117,8 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             }
             finally
             {
-                _cache.Return();
+                cache.Return();
+                _cache = cache;
             }
         }
 
@@ -255,7 +255,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
 
             var writer = context.Writer;
             if (user != null)
-                writer.WriteString(XRayWriter.User, user);
+                writer.WriteString(XRayField.User, user);
 
             WriteXRayMetadata(context, storeResource);
             WriteXRayAnnotations(context, storeResource);
@@ -308,9 +308,9 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             {
                 if (!hasMetadata)
                 {
-                    writer.WritePropertyName(XRayWriter.Metadata);
+                    writer.WritePropertyName(XRayField.Metadata);
                     writer.WriteStartObject();
-                    writer.WritePropertyName(XRayWriter.Default);
+                    writer.WritePropertyName(XRayField.Default);
                     writer.WriteStartObject();
                 }
 
@@ -371,7 +371,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             {
                 if (!hasAnnotations)
                 {
-                    writer.WritePropertyName(XRayWriter.Annotations);
+                    writer.WritePropertyName(XRayField.Annotations);
                     writer.WriteStartObject();
                 }
 
