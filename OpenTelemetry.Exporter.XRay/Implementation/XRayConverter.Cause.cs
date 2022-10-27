@@ -1,7 +1,6 @@
 using System;
 using System.Diagnostics;
 using System.Globalization;
-using System.IO;
 using System.Text.Json;
 
 namespace OpenTelemetry.Exporter.XRay.Implementation
@@ -159,7 +158,9 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                         WriteJavaStacktrace(writer, stacktrace);
                         break;
                     // case "python":
-                    //case "javascript":
+                    case "javascript":
+                        WriteJavaScriptStacktrace(writer, stacktrace);
+                        break;
                     case "dotnet":
                         WriteDotNetStacktrace(writer, stacktrace);
                         break;
@@ -211,7 +212,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 {
                     var causeType = line[11..];
                     var causeMessage = ReadOnlySpan<char>.Empty;
-                    
+
                     var colonIdx = causeType.IndexOf(':');
                     if (colonIdx >= 0)
                     {
@@ -298,6 +299,60 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                             hasStack = WriteExceptionStack(writer, hasStack, ReadOnlySpan<char>.Empty, label, 0);
                         }
                     }
+                }
+            }
+
+            if (hasStack)
+            {
+                writer.WriteEndArray();
+            }
+        }
+
+        private void WriteJavaScriptStacktrace(Utf8JsonWriter writer, string stacktrace)
+        {
+            var r = new XRayStringReader(stacktrace);
+            if (!r.ReadLine())
+                return;
+
+            var hasStack = false;
+            while (r.ReadLine())
+            {
+                var line = r.Line;
+                if (line.StartsWith("    at ", StringComparison.Ordinal))
+                {
+                    var parenIdx = line.IndexOf('(');
+                    var label = ReadOnlySpan<char>.Empty;
+                    var path = ReadOnlySpan<char>.Empty;
+                    var lineIdx = 0;
+                    if (parenIdx >= 0 && line[^1] == ')')
+                    {
+                        label = line[7..parenIdx];
+                        path = line[(parenIdx + 1)..^1];
+                    }
+                    else if (parenIdx < 0)
+                    {
+                        path = line[7..];
+                    }
+
+                    var colonFirstIdx = path.IndexOf(':');
+                    var afterColon = ReadOnlySpan<char>.Empty;
+                    if (colonFirstIdx >= 0)
+                        afterColon = path[(colonFirstIdx + 1)..];
+
+                    var colonSecondIdx = afterColon.IndexOf(':');
+                    if (colonFirstIdx >= 0 && colonSecondIdx >= 0)
+                    {
+                        var lineStr = afterColon[..colonSecondIdx];
+                        path = path[..colonFirstIdx];
+                        int.TryParse(lineStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out lineIdx);
+                    }
+                    else if (colonFirstIdx < 0 && path.Contains("native", StringComparison.Ordinal))
+                    {
+                        path = "native";
+                    }
+
+                    if (!path.IsEmpty || !label.IsEmpty || lineIdx != 0)
+                        hasStack = WriteExceptionStack(writer, hasStack, path, label, lineIdx);
                 }
             }
 

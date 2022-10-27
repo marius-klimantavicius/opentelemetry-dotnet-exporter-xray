@@ -596,7 +596,116 @@ Caused by: java.lang.IllegalArgumentException: bad argument
         }
 
         // PORT: Port python later
-        // PORT: Port javascript later
+
+        [Fact]
+        public void Should_parse_exception_with_javascript_stacktrace()
+        {
+            var exceptionType = "TypeError";
+            var message = "Cannot read property 'value' of null";
+            // We ignore the exception type / message from the stacktrace
+            var stacktrace = @"TypeError: Cannot read property 'value' of null
+    at speedy (/home/gbusey/file.js:6:11)
+    at makeFaster (/home/gbusey/file.js:5:3)
+    at Object.<anonymous> (/home/gbusey/file.js:10:1)
+    at node.js:906:3
+    at Array.forEach (native)
+    at native";
+
+            var parsedExceptions = ParseException(exceptionType, message, stacktrace, "javascript");
+            Assert.Collection(parsedExceptions,
+                exception =>
+                {
+                    Assert.Equal("TypeError", exception.Type);
+                    Assert.Equal("Cannot read property 'value' of null", exception.Message);
+                    Assert.Collection(exception.Stack,
+                        s =>
+                        {
+                            Assert.Equal("speedy ", s.Label);
+                            Assert.Equal("/home/gbusey/file.js", s.Path);
+                            Assert.Equal(6, s.Line);
+                        },
+                        s =>
+                        {
+                            Assert.Equal("makeFaster ", s.Label);
+                            Assert.Equal("/home/gbusey/file.js", s.Path);
+                            Assert.Equal(5, s.Line);
+                        },
+                        s =>
+                        {
+                            Assert.Equal("Object.<anonymous> ", s.Label);
+                            Assert.Equal("/home/gbusey/file.js", s.Path);
+                            Assert.Equal(10, s.Line);
+                        },
+                        s =>
+                        {
+                            Assert.Equal("", s.Label ?? "");
+                            Assert.Equal("node.js", s.Path);
+                            Assert.Equal(906, s.Line);
+                        },
+                        s =>
+                        {
+                            Assert.Equal("Array.forEach ", s.Label);
+                            Assert.Equal("native", s.Path);
+                            Assert.Equal(0, s.Line ?? 0);
+                        },
+                        s =>
+                        {
+                            Assert.Equal("", s.Label ?? "");
+                            Assert.Equal("native", s.Path);
+                            Assert.Equal(0, s.Line ?? 0);
+                        }
+                    );
+                });
+        }
+
+        [Fact]
+        public void Should_parse_exception_with_stacktrace_not_javascript()
+        {
+            var exceptionType = "TypeError";
+            var message = "Cannot read property 'value' of null";
+            var stacktrace = @"TypeError: Cannot read property 'value' of null
+    at speedy (/home/gbusey/file.js:6:11)
+    at makeFaster (/home/gbusey/file.js:5:3)
+    at Object.<anonymous> (/home/gbusey/file.js:10:1)";
+
+            var parsedExceptions = ParseException(exceptionType, message, stacktrace, "");
+            Assert.Collection(parsedExceptions,
+                exception =>
+                {
+                    Assert.NotEmpty(exception.Id);
+                    Assert.Equal(exceptionType, exception.Type);
+                    Assert.Equal(message, exception.Message);
+                    Assert.Null(exception.Stack);
+                });
+        }
+
+        [Fact]
+        public void Should_parse_exception_with_javascript_stacktrace_malformed_lines()
+        {
+            var exceptionType = "TypeError";
+            var message = "Cannot read property 'value' of null";
+            // We ignore the exception type / message from the stacktrace
+            var stacktrace = @"TypeError: Cannot read property 'value' of null
+    at speedy (/home/gbusey/file.js)
+    at makeFaster (/home/gbusey/file.js:5:3)malformed123
+    at Object.<anonymous> (/home/gbusey/file.js:10";
+
+            var parsedExceptions = ParseException(exceptionType, message, stacktrace, "javascript");
+            Assert.Collection(parsedExceptions,
+                exception =>
+                {
+                    Assert.Equal("TypeError", exception.Type);
+                    Assert.Equal("Cannot read property 'value' of null", exception.Message);
+                    Assert.Collection(exception.Stack,
+                        s =>
+                        {
+                            Assert.Equal("speedy ", s.Label);
+                            Assert.Equal("/home/gbusey/file.js", s.Path);
+                            Assert.Equal(0, s.Line ?? 0);
+                        }
+                    );
+                });
+        }
 
         [Fact]
         public void Should_parse_exception_with_simple_stacktrace_dotnet()
