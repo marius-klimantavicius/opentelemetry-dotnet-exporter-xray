@@ -1401,8 +1401,139 @@ Caused by: Exception: Thrown from class A
                         });
                 });
         }
+        
+        [Fact]
+        public void Should_parse_exception_with_go_without_stacktrace()
+        {
+            var exceptionType = "Exception";
+            var message = "Thrown from grandparent";
 
-        // PORT: Port go later
+            var stacktrace = @"";
+
+            var parsedExceptions = ParseException(exceptionType, message, stacktrace, "go");
+            Assert.Collection(parsedExceptions,
+                exception =>
+                {
+                    Assert.NotEmpty(exception.Id);
+                    Assert.Equal(exceptionType, exception.Type);
+                    Assert.Equal(message, exception.Message);
+                    Assert.Null(exception.Stack);
+                });
+        }
+        
+        [Fact]
+        public void Should_parse_exception_with_go_with_stacktrace()
+        {
+            var exceptionType = "Exception";
+            var message = "error message";
+
+            var stacktrace = @"goroutine 19 [running]:
+go.opentelemetry.io/otel/sdk/trace.recordStackTrace(0x0, 0x0)
+	otel-go-core/opentelemetry-go/sdk/trace/span.go:323 +0x9b
+go.opentelemetry.io/otel/sdk/trace.(*span).RecordError(0xc0003a6000, 0x14a5f00, 0xc00038c000, 0xc000390140, 0x3, 0x4)
+	otel-go-core/opentelemetry-go/sdk/trace/span.go:302 +0x3fc
+go.opentelemetry.io/otel/sdk/trace.TestRecordErrorWithStackTrace(0xc000102900)
+	otel-go-core/opentelemetry-go/sdk/trace/trace_test.go:1167 +0x3ef
+testing.tRunner(0xc000102900, 0x1484410)
+	/usr/local/Cellar/go/1.16.3/libexec/src/testing/testing.go:1193 +0x1a3
+created by testing.(*T).Run
+	/usr/local/Cellar/go/1.16.3/libexec/src/testing/testing.go:1238 +0x63c";
+
+            var parsedExceptions = ParseException(exceptionType, message, stacktrace, "go");
+            Assert.Collection(parsedExceptions,
+                exception =>
+                {
+                    Assert.NotEmpty(exception.Id);
+                    Assert.Equal(exceptionType, exception.Type);
+                    Assert.Equal(message, exception.Message);
+
+                    Assert.Collection(exception.Stack,
+                        s =>
+                        {
+                            Assert.StartsWith("go.opentelemetry.io/otel/sdk/trace.recordStackTrace", s.Label);
+                            Assert.Equal("otel-go-core/opentelemetry-go/sdk/trace/span.go", s.Path);
+                            Assert.Equal(323, s.Line);
+                        },
+                        s =>
+                        {
+                            Assert.StartsWith("go.opentelemetry.io/otel/sdk/trace.(*span).RecordError", s.Label);
+                            Assert.Equal("otel-go-core/opentelemetry-go/sdk/trace/span.go", s.Path);
+                            Assert.Equal(302, s.Line);
+                        },
+                        s =>
+                        {
+                        },
+                        s =>
+                        {
+                            Assert.StartsWith("testing.tRunner", s.Label);
+                            Assert.Equal("/usr/local/Cellar/go/1.16.3/libexec/src/testing/testing.go", s.Path);
+                            Assert.Equal(1193, s.Line);
+                        },
+                        s =>
+                        {
+                            Assert.StartsWith("created by testing.(*T).Run", s.Label);
+                            Assert.Equal("/usr/local/Cellar/go/1.16.3/libexec/src/testing/testing.go", s.Path);
+                            Assert.Equal(1238, s.Line);
+                        });
+                });
+        }
+        
+        [Fact]
+        public void Should_parse_multiple_exception_with_go_stacktrace()
+        {
+            var exceptionType = "Exception";
+            var message = "panic";
+
+            var stacktrace = @"goroutine 19 [running]:
+go.opentelemetry.io/otel/sdk/trace.recordStackTrace(0x0, 0x0)
+	Documents/otel-go-core/opentelemetry-go/sdk/trace/span.go:318 +0x9b
+go.opentelemetry.io/otel/sdk/trace.(*span).End(0xc000082300, 0xc0000a0040, 0x1, 0x1)
+	Documents/otel-go-core/opentelemetry-go/sdk/trace/span.go:252 +0x4ee
+panic(0x1414f00, 0xc0000a0050)
+	/usr/local/Cellar/go/1.16.3/libexec/src/runtime/panic.go:971 +0x4c7
+go.opentelemetry.io/otel/sdk/trace.TestSpanCapturesPanicWithStackTrace.func1()
+	Documents/otel-go-core/opentelemetry-go/sdk/trace/trace_test.go:1425 +0x225
+github.com/stretchr/testify/assert.didPanic.func1(0xc0001ad0e8, 0xc0001ad0d7, 0xc0001ad0d8, 0xc00009e048)
+	go/pkg/mod/github.com/stretchr/testify@v1.7.0/assert/assertions.go:1018 +0xb8
+github.com/stretchr/testify/assert.didPanic(0xc00009e048, 0x14a5b00, 0x0, 0x0, 0x0, 0x0)
+	go/pkg/mod/github.com/stretchr/testify@v1.7.0/assert/assertions.go:1020 +0x85
+github.com/stretchr/testify/assert.PanicsWithError(0x14a5b60, 0xc000186600, 0x146e31c, 0xd, 0xc00009e048, 0x0, 0x0, 0x0, 0xc000038900)
+	go/pkg/mod/github.com/stretchr/testify@v1.7.0/assert/assertions.go:1071 +0x10c
+goroutine 26 [running]:
+github.com/stretchr/testify/require.PanicsWithError(0x14a7328, 0xc000186600, 0x146e31c, 0xd, 0xc00009e048, 0x0, 0x0, 0x0)
+	go/pkg/mod/github.com/stretchr/testify@v1.7.0/require/require.go:1607 +0x15e
+go.opentelemetry.io/otel/sdk/trace.TestSpanCapturesPanicWithStackTrace(0xc000186600)
+	Documents/otel-go-core/opentelemetry-go/sdk/trace/trace_test.go:1427 +0x33a
+testing.tRunner(0xc000186600, 0x1484440)
+	/usr/local/Cellar/go/1.16.3/libexec/src/testing/testing.go:1193 +0x1a3
+created by testing.(*T).Run
+	/usr/local/Cellar/go/1.16.3/libexec/src/testing/testing.go:1238 +0x63c";
+
+            var parsedExceptions = ParseException(exceptionType, message, stacktrace, "go");
+            Assert.Collection(parsedExceptions,
+                exception =>
+                {
+                    Assert.NotEmpty(exception.Id);
+                    Assert.Equal(exceptionType, exception.Type);
+                    Assert.Equal(message, exception.Message);
+
+                    Assert.Equal(11, exception.Stack.Count);
+                    
+                    Assert.StartsWith("go.opentelemetry.io/otel/sdk/trace.recordStackTrace", exception.Stack[0].Label);
+                    Assert.Equal("Documents/otel-go-core/opentelemetry-go/sdk/trace/span.go", exception.Stack[0].Path);
+                    Assert.Equal(318, exception.Stack[0].Line);
+                    Assert.StartsWith("github.com/stretchr/testify/require.PanicsWithError", exception.Stack[7].Label);
+                    Assert.Equal("go/pkg/mod/github.com/stretchr/testify@v1.7.0/require/require.go", exception.Stack[7].Path);
+                    Assert.Equal(1607, exception.Stack[7].Line);
+                    Assert.StartsWith("go.opentelemetry.io/otel/sdk/trace.TestSpanCapturesPanicWithStackTrace", exception.Stack[8].Label);
+                    Assert.Equal("Documents/otel-go-core/opentelemetry-go/sdk/trace/trace_test.go", exception.Stack[8].Path);
+                    Assert.Equal(1427, exception.Stack[8].Line);
+                    Assert.StartsWith("created by testing.(*T).Run", exception.Stack[10].Label);
+                    Assert.Equal("/usr/local/Cellar/go/1.16.3/libexec/src/testing/testing.go", exception.Stack[10].Path);
+                    Assert.Equal(1238, exception.Stack[10].Line);
+
+                });
+        }
 
         private IEnumerable<XRayException> ParseException(string exceptionType, string message, string stacktrace, string language)
         {

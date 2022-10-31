@@ -2,11 +2,14 @@ using System;
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace OpenTelemetry.Exporter.XRay.Implementation
 {
     internal partial class XRayConverter
     {
+        private static readonly Regex _goLineNumber = new Regex(@"([^:\s]+)\:(\d+)", RegexOptions.Compiled);
+
         private void WriteCause(in XRayConverterContext context)
         {
             var span = context.Span;
@@ -167,7 +170,9 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                     case "dotnet":
                         WriteDotNetStacktrace(writer, stacktrace);
                         break;
-                    // case "go"
+                    case "go":
+                        WriteGoStacktrace(writer, stacktrace);
+                        break;
                 }
             }
 
@@ -394,7 +399,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                         int.TryParse(lineNumberPart[6..], NumberStyles.Any, CultureInfo.InvariantCulture, out lineNumber);
 
                     line = line[(index + 1)..];
-                    
+
                     var label = ReadOnlySpan<char>.Empty;
                     if (line.StartsWith(" in "))
                         label = line[4..];
@@ -429,7 +434,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                     messageReader.ReadLine();
 
                     r = new XRayReverseStringReader(remainder);
-                    
+
                     var message = messageReader.Remainder.TrimEnd("\r\n");
                     var colonIdx = message.IndexOf(':');
                     if (colonIdx < 0)
@@ -457,6 +462,53 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                         writer.WriteString(XRayField.Type, causeType);
                     writer.WriteString(XRayField.Message, causeMessage);
                 }
+            }
+
+            if (hasStack)
+            {
+                writer.WriteEndArray();
+            }
+        }
+
+        private void WriteGoStacktrace(Utf8JsonWriter writer, string stacktrace)
+        {
+            var r = new XRayStringReader(stacktrace);
+
+            if (!r.ReadLine())
+                return;
+
+            var hasStack = false;
+            while (r.ReadLine())
+            {
+                var line = r.Line;
+                if (line.StartsWith("goroutine") && line[^1] == ':')
+                {
+                    var runningIndex = line.IndexOf("running");
+                    
+                    // we can safely index before and after the match as we already checked that line starts with goroutine and ends with ':'
+                    if (runningIndex >= 0 && !char.IsLetterOrDigit(line[runningIndex - 1]) && !char.IsLetterOrDigit(line[runningIndex + 8]))
+                    {
+                        r.ReadLine();
+                        line = r.Line;
+                    }
+                }
+
+                var label = line;
+
+                r.ReadLine();
+                line = r.Line;
+
+                // TODO (low): remove regex/memory allocations here
+                var match = _goLineNumber.Match(line.ToString());
+                var lineNumber = 0;
+                var path = default(string);
+                if (match.Success)
+                {
+                    path = match.Groups[1].Value;
+                    int.TryParse(match.Groups[2].Value, NumberStyles.Any, CultureInfo.InvariantCulture, out lineNumber);
+                }
+
+                hasStack = WriteExceptionStack(writer, hasStack, path, label, lineNumber);
             }
 
             if (hasStack)
