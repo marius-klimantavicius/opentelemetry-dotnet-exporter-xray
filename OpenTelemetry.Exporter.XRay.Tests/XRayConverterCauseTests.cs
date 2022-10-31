@@ -1119,7 +1119,289 @@ TypeError: must be str, not int";
                 });
         }
 
-        // PORT: Port php later
+        [Fact]
+        public void Should_parse_exception_with_php_stacktrace()
+        {
+            var exceptionType = "Exception";
+            var message = "Thrown from grandparent";
+
+            var stacktrace = @"Exception: Thrown from grandparent
+	at grandparent_func(test.php:56)
+	at parent_func(test.php:51)
+	at child_func(test.php:44)
+	at main(test.php:63)";
+
+            var parsedExceptions = ParseException(exceptionType, message, stacktrace, "php");
+            Assert.Collection(parsedExceptions,
+                exception =>
+                {
+                    Assert.NotEmpty(exception.Id);
+                    Assert.Equal(exceptionType, exception.Type);
+                    Assert.Equal(message, exception.Message);
+
+                    Assert.Collection(exception.Stack,
+                        s =>
+                        {
+                            Assert.Equal("grandparent_func", s.Label);
+                            Assert.Equal("test.php", s.Path);
+                            Assert.Equal(56, s.Line);
+                        },
+                        s =>
+                        {
+                            Assert.Equal("parent_func", s.Label);
+                            Assert.Equal("test.php", s.Path);
+                            Assert.Equal(51, s.Line);
+                        },
+                        s =>
+                        {
+                            Assert.Equal("child_func", s.Label);
+                            Assert.Equal("test.php", s.Path);
+                            Assert.Equal(44, s.Line);
+                        },
+                        s =>
+                        {
+                            Assert.Equal("main", s.Label);
+                            Assert.Equal("test.php", s.Path);
+                            Assert.Equal(63, s.Line);
+                        });
+                });
+
+        }
+
+        [Fact]
+        public void Should_parse_exception_without_php_stacktrace()
+        {
+            var exceptionType = "Exception";
+            var message = "Thrown from grandparent";
+
+            var stacktrace = @"";
+
+            var parsedExceptions = ParseException(exceptionType, message, stacktrace, "php");
+            Assert.Collection(parsedExceptions,
+                exception =>
+                {
+                    Assert.NotEmpty(exception.Id);
+                    Assert.Equal(exceptionType, exception.Type);
+                    Assert.Equal(message, exception.Message);
+                    Assert.Null(exception.Stack);
+                });
+        }
+
+        [Fact]
+        public void Should_parse_exception_with_php_stacktrace_with_cause()
+        {
+            var exceptionType = "Exception";
+            var message = "Thrown from class B";
+
+            var stacktrace = @"Exception: Thrown from class B
+	at B.exc(test.php:59)
+	at fail(test.php:81)
+	at main(test.php:89)
+Caused by: Exception: Thrown from class A";
+
+            var parsedExceptions = ParseException(exceptionType, message, stacktrace, "php").ToList();
+            Assert.Collection(parsedExceptions,
+                exception =>
+                {
+                    Assert.NotEmpty(exception.Id);
+                    Assert.Equal(exceptionType, exception.Type);
+                    Assert.Equal(message, exception.Message);
+                    Assert.Equal(exception.Cause, parsedExceptions[1].Id);
+
+                    Assert.Collection(exception.Stack,
+                        s =>
+                        {
+                            Assert.Equal("B.exc", s.Label);
+                            Assert.Equal("test.php", s.Path);
+                            Assert.Equal(59, s.Line);
+                        },
+                        s =>
+                        {
+                            Assert.Equal("fail", s.Label);
+                            Assert.Equal("test.php", s.Path);
+                            Assert.Equal(81, s.Line);
+                        },
+                        s =>
+                        {
+                            Assert.Equal("main", s.Label);
+                            Assert.Equal("test.php", s.Path);
+                            Assert.Equal(89, s.Line);
+                        });
+                },
+                exception =>
+                {
+                    Assert.Equal("Exception", exception.Type);
+                    Assert.Equal("Thrown from class A", exception.Message);
+                    Assert.Null(exception.Stack);
+                });
+        }
+
+        [Fact]
+        public void Should_parse_exception_with_php_stacktrace_with_cause_and_stacktrace()
+        {
+            var exceptionType = "Exception";
+            var message = "Thrown from class B";
+
+            var stacktrace = @"Exception: Thrown from class B
+	at B.exc(test.php:59)
+	at fail(test.php:81)
+	at main(test.php:89)
+Caused by: Exception: Thrown from class A
+	at A.exc(test.php:48)
+	at B.exc(test.php:56)
+	... 2 more";
+
+            var parsedExceptions = ParseException(exceptionType, message, stacktrace, "php").ToList();
+            Assert.Collection(parsedExceptions,
+                exception =>
+                {
+                    Assert.NotEmpty(exception.Id);
+                    Assert.Equal(exceptionType, exception.Type);
+                    Assert.Equal(message, exception.Message);
+                    Assert.Equal(exception.Cause, parsedExceptions[1].Id);
+
+                    Assert.Collection(exception.Stack,
+                        s =>
+                        {
+                            Assert.Equal("B.exc", s.Label);
+                            Assert.Equal("test.php", s.Path);
+                            Assert.Equal(59, s.Line);
+                        },
+                        s =>
+                        {
+                            Assert.Equal("fail", s.Label);
+                            Assert.Equal("test.php", s.Path);
+                            Assert.Equal(81, s.Line);
+                        },
+                        s =>
+                        {
+                            Assert.Equal("main", s.Label);
+                            Assert.Equal("test.php", s.Path);
+                            Assert.Equal(89, s.Line);
+                        });
+                },
+                exception =>
+                {
+                    Assert.NotEmpty(exception.Id);
+                    Assert.Equal("Exception", exception.Type);
+                    Assert.Equal("Thrown from class A", exception.Message);
+                    Assert.Collection(exception.Stack,
+                        s =>
+                        {
+                            Assert.Equal("A.exc", s.Label);
+                            Assert.Equal("test.php", s.Path);
+                            Assert.Equal(48, s.Line);
+                        },
+                        s =>
+                        {
+                            Assert.Equal("B.exc", s.Label);
+                            Assert.Equal("test.php", s.Path);
+                            Assert.Equal(56, s.Line);
+                        });
+                });
+        }
+
+        [Fact]
+        public void Should_parse_exception_with_php_stacktrace_with_multiple_cause()
+        {
+            var exceptionType = "Exception";
+            var message = "Thrown from class C";
+
+            var stacktrace = @"Exception: Thrown from class C
+	at C.exc(test.php:74)
+	at main(test.php:89)
+Caused by: Exception: Thrown from class B
+	at B.exc(test.php:59)
+	at C.exc(test.php:71)
+	... 3 more
+Caused by: Exception: Thrown from class A
+	at A.exc(test.php:48)
+	at B.exc(test.php:56)
+	... 4 more";
+
+            var parsedExceptions = ParseException(exceptionType, message, stacktrace, "php").ToList();
+            Assert.Collection(parsedExceptions,
+                exception =>
+                {
+                    Assert.NotEmpty(exception.Id);
+                    Assert.Equal(exceptionType, exception.Type);
+                    Assert.Equal(message, exception.Message);
+                    Assert.Equal(exception.Cause, parsedExceptions[1].Id);
+
+                    Assert.Collection(exception.Stack,
+                        s =>
+                        {
+                            Assert.Equal("C.exc", s.Label);
+                            Assert.Equal("test.php", s.Path);
+                            Assert.Equal(74, s.Line);
+                        },
+                        s =>
+                        {
+                            Assert.Equal("main", s.Label);
+                            Assert.Equal("test.php", s.Path);
+                            Assert.Equal(89, s.Line);
+                        });
+                },
+                exception =>
+                {
+                    Assert.NotEmpty(exception.Id);
+                    Assert.Equal("Exception", exception.Type);
+                    Assert.Equal("Thrown from class B", exception.Message);
+                    Assert.Equal(exception.Cause, parsedExceptions[2].Id);
+
+                    Assert.Equal(2, exception.Stack.Count);
+                    Assert.Equal("B.exc", exception.Stack[0].Label);
+                    Assert.Equal("test.php", exception.Stack[0].Path);
+                    Assert.Equal(59, exception.Stack[0].Line);
+                },
+                exception =>
+                {
+                    Assert.NotEmpty(exception.Id);
+                    Assert.Equal("Exception", exception.Type);
+                    Assert.Equal("Thrown from class A", exception.Message);
+
+                    Assert.Equal(2, exception.Stack.Count);
+                    Assert.Equal("B.exc", exception.Stack[1].Label);
+                    Assert.Equal("test.php", exception.Stack[1].Path);
+                    Assert.Equal(56, exception.Stack[1].Line);
+                });
+        }
+
+        [Fact]
+        public void Should_parse_exception_with_php_stacktrace_with_malformed_lines()
+        {
+            var exceptionType = "Exception";
+            var message = "Thrown from class B";
+
+            var stacktrace = @"Exception: Thrown from class B
+	at B.exc(test.php:59)
+	at fail(test.php:81 malformed
+	at main(test.php:89)";
+
+            var parsedExceptions = ParseException(exceptionType, message, stacktrace, "php").ToList();
+            Assert.Collection(parsedExceptions,
+                exception =>
+                {
+                    Assert.NotEmpty(exception.Id);
+                    Assert.Equal(exceptionType, exception.Type);
+                    Assert.Equal(message, exception.Message);
+
+                    Assert.Collection(exception.Stack,
+                        s =>
+                        {
+                            Assert.Equal("B.exc", s.Label);
+                            Assert.Equal("test.php", s.Path);
+                            Assert.Equal(59, s.Line);
+                        },
+                        s =>
+                        {
+                            Assert.Equal("main", s.Label);
+                            Assert.Equal("test.php", s.Path);
+                            Assert.Equal(89, s.Line);
+                        });
+                });
+        }
+
         // PORT: Port go later
 
         private IEnumerable<XRayException> ParseException(string exceptionType, string message, string stacktrace, string language)

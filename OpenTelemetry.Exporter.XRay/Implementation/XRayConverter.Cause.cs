@@ -155,6 +155,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 switch (language)
                 {
                     case "java":
+                    case "php": // The PHP SDK formats stack traces exactly like Java would
                         WriteJavaStacktrace(writer, stacktrace);
                         break;
                     case "python":
@@ -166,7 +167,6 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                     case "dotnet":
                         WriteDotNetStacktrace(writer, stacktrace);
                         break;
-                    // case "php":
                     // case "go"
                 }
             }
