@@ -157,7 +157,9 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                     case "java":
                         WriteJavaStacktrace(writer, stacktrace);
                         break;
-                    // case "python":
+                    case "python":
+                        WritePythonStacktrace(writer, stacktrace);
+                        break;
                     case "javascript":
                         WriteJavaScriptStacktrace(writer, stacktrace);
                         break;
@@ -353,6 +355,107 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
 
                     if (!path.IsEmpty || !label.IsEmpty || lineIdx != 0)
                         hasStack = WriteExceptionStack(writer, hasStack, path, label, lineIdx);
+                }
+            }
+
+            if (hasStack)
+            {
+                writer.WriteEndArray();
+            }
+        }
+
+        private void WritePythonStacktrace(Utf8JsonWriter writer, string stacktrace)
+        {
+            var r = new XRayReverseStringReader(stacktrace);
+            if (!r.ReadLine())
+                return;
+
+            var hasStack = false;
+            while (r.ReadLine())
+            {
+                var line = r.Line;
+                if (line.StartsWith("  File ", StringComparison.Ordinal))
+                {
+                    var index = line.IndexOf(',');
+                    if (index < 0)
+                        break;
+
+                    var filePart = line[..index];
+                    var file = filePart[8..^1];
+
+                    line = line[(index + 1)..];
+                    index = line.IndexOf(',');
+                    if (index < 0)
+                        break;
+
+                    var lineNumberPart = line[..index];
+                    var lineNumber = 0;
+                    if (lineNumberPart.StartsWith(" line "))
+                        int.TryParse(lineNumberPart[6..], NumberStyles.Any, CultureInfo.InvariantCulture, out lineNumber);
+
+                    line = line[(index + 1)..];
+                    
+                    var label = ReadOnlySpan<char>.Empty;
+                    if (line.StartsWith(" in "))
+                        label = line[4..];
+
+                    hasStack = WriteExceptionStack(writer, hasStack, file, label, lineNumber);
+                }
+                else if (line.StartsWith("During handling of the above exception, another exception occurred:", StringComparison.Ordinal))
+                {
+                    var remainder = r.Remainder;
+                    var messageFinder = new XRayReverseStringReader(remainder);
+                    while (true)
+                    {
+                        if (!messageFinder.ReadLine())
+                        {
+                            if (hasStack)
+                                writer.WriteEndArray();
+
+                            return;
+                        }
+
+                        var nextLine = messageFinder.Line;
+                        if (nextLine.StartsWith("  File "))
+                            break;
+
+                        remainder = messageFinder.Remainder;
+                    }
+
+                    // Join message which potentially has newlines. Message starts two lines from the next "File " line and ends
+                    // two lines before the "During handling " line.
+                    var messageReader = new XRayStringReader(messageFinder.Input[messageFinder.LineStart..]);
+                    messageReader.ReadLine();
+                    messageReader.ReadLine();
+
+                    r = new XRayReverseStringReader(remainder);
+                    
+                    var message = messageReader.Remainder.TrimEnd("\r\n");
+                    var colonIdx = message.IndexOf(':');
+                    if (colonIdx < 0)
+                    {
+                        if (hasStack)
+                            writer.WriteEndArray();
+
+                        return;
+                    }
+
+                    var causeType = message[..colonIdx];
+                    var causeMessage = message[(colonIdx + 2)..];
+
+                    if (hasStack)
+                        writer.WriteEndArray();
+                    hasStack = false;
+
+                    var nextId = NewSegmentId().ToHexString();
+                    writer.WriteString(XRayField.Cause, nextId);
+                    writer.WriteEndObject(); // end previous exception
+
+                    writer.WriteStartObject();
+                    writer.WriteString(XRayField.Id, nextId);
+                    if (!causeType.IsEmpty)
+                        writer.WriteString(XRayField.Type, causeType);
+                    writer.WriteString(XRayField.Message, causeMessage);
                 }
             }
 

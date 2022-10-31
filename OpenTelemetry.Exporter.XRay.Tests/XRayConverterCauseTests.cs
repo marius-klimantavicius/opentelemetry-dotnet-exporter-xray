@@ -595,7 +595,305 @@ Caused by: java.lang.IllegalArgumentException: bad argument
                 });
         }
 
-        // PORT: Port python later
+        [Fact]
+        public void Should_parse_exception_with_python_stacktrace_no_cause()
+        {
+            var exceptionType = "TypeError";
+            var message = "must be str, not int";
+            // We ignore the exception type / message from the stacktrace
+            var stacktrace = @"Traceback (most recent call last):
+  File ""main.py"", line 14, in <module>
+    greet_many(['Chad', 'Dan', 1])
+  File ""greetings.py"", line 12, in greet_many
+    print('hi, ' + person)
+TypeError: must be str, not int";
+
+            var parsedExceptions = ParseException(exceptionType, message, stacktrace, "python");
+            Assert.Collection(parsedExceptions,
+                exception =>
+                {
+                    Assert.NotEmpty(exception.Id);
+                    Assert.Equal("TypeError", exception.Type);
+                    Assert.Equal("must be str, not int", exception.Message);
+                    Assert.Collection(exception.Stack,
+                        s =>
+                        {
+                            Assert.Equal("greet_many", s.Label);
+                            Assert.Equal("greetings.py", s.Path);
+                            Assert.Equal(12, s.Line);
+                        },
+                        s =>
+                        {
+                            Assert.Equal("<module>", s.Label);
+                            Assert.Equal("main.py", s.Path);
+                            Assert.Equal(14, s.Line);
+                        });
+                });
+        }
+
+        [Fact]
+        public void Should_parse_exception_with_python_stacktrace_and_cause()
+        {
+            var exceptionType = "TypeError";
+            var message = "must be str, not int";
+            // We ignore the exception type / message from the stacktrace
+            var stacktrace = @"Traceback (most recent call last):
+  File ""bar.py"", line 10, in greet_many
+    greet(person)
+  File ""foo.py"", line 5, in greet
+    print(greeting + ', ' + who_to_greet(someone))
+ValueError: bad value
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File ""main.py"", line 14, in <module>
+    greet_many(['Chad', 'Dan', 1])
+  File ""greetings.py"", line 12, in greet_many
+    print('hi, ' + person)
+TypeError: must be str, not int";
+
+            var parsedExceptions = ParseException(exceptionType, message, stacktrace, "python");
+            Assert.Collection(parsedExceptions,
+                exception =>
+                {
+                    Assert.NotEmpty(exception.Id);
+                    Assert.Equal("TypeError", exception.Type);
+                    Assert.Equal("must be str, not int", exception.Message);
+                    Assert.Collection(exception.Stack,
+                        s =>
+                        {
+                            Assert.Equal("greet_many", s.Label);
+                            Assert.Equal("greetings.py", s.Path);
+                            Assert.Equal(12, s.Line);
+                        },
+                        s =>
+                        {
+                            Assert.Equal("<module>", s.Label);
+                            Assert.Equal("main.py", s.Path);
+                            Assert.Equal(14, s.Line);
+                        });
+                },
+                exception =>
+                {
+                    Assert.NotEmpty(exception.Id);
+                    Assert.Equal("ValueError", exception.Type);
+                    Assert.Equal("bad value", exception.Message);
+
+                    Assert.Collection(exception.Stack,
+                        s =>
+                        {
+                            Assert.Equal("greet", s.Label);
+                            Assert.Equal("foo.py", s.Path);
+                            Assert.Equal(5, s.Line);
+                        },
+                        s =>
+                        {
+                            Assert.Equal("greet_many", s.Label);
+                            Assert.Equal("bar.py", s.Path);
+                            Assert.Equal(10, s.Line);
+                        });
+                });
+        }
+
+        [Fact]
+        public void Should_parse_exception_with_python_stacktrace_and_multiline_cause()
+        {
+            var exceptionType = "TypeError";
+            var message = "must be str, not int";
+            // We ignore the exception type / message from the stacktrace
+            var stacktrace = @"Traceback (most recent call last):
+  File ""bar.py"", line 10, in greet_many
+    greet(person)
+  File ""foo.py"", line 5, in greet
+    print(greeting + ', ' + who_to_greet(someone))
+ValueError: bad value
+with more on
+new lines
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File ""main.py"", line 14, in <module>
+    greet_many(['Chad', 'Dan', 1])
+  File ""greetings.py"", line 12, in greet_many
+    print('hi, ' + person)
+TypeError: must be str, not int";
+
+            var parsedExceptions = ParseException(exceptionType, message, stacktrace, "python");
+            Assert.Collection(parsedExceptions,
+                exception =>
+                {
+                    Assert.NotEmpty(exception.Id);
+                    Assert.Equal("TypeError", exception.Type);
+                    Assert.Equal("must be str, not int", exception.Message);
+                    Assert.Collection(exception.Stack,
+                        s =>
+                        {
+                            Assert.Equal("greet_many", s.Label);
+                            Assert.Equal("greetings.py", s.Path);
+                            Assert.Equal(12, s.Line);
+                        },
+                        s =>
+                        {
+                            Assert.Equal("<module>", s.Label);
+                            Assert.Equal("main.py", s.Path);
+                            Assert.Equal(14, s.Line);
+                        });
+                },
+                exception =>
+                {
+                    Assert.NotEmpty(exception.Id);
+                    Assert.Equal("ValueError", exception.Type);
+                    Assert.Equal("bad value\nwith more on\nnew lines", exception.Message);
+
+                    Assert.Collection(exception.Stack,
+                        s =>
+                        {
+                            Assert.Equal("greet", s.Label);
+                            Assert.Equal("foo.py", s.Path);
+                            Assert.Equal(5, s.Line);
+                        },
+                        s =>
+                        {
+                            Assert.Equal("greet_many", s.Label);
+                            Assert.Equal("bar.py", s.Path);
+                            Assert.Equal(10, s.Line);
+                        });
+                });
+        }
+
+        [Fact]
+        public void Should_parse_exception_with_python_stacktrace_malformed_lines()
+        {
+            var exceptionType = "TypeError";
+            var message = "must be str, not int";
+            // We ignore the exception type / message from the stacktrace
+            var stacktrace = @"Traceback (most recent call last):
+  File ""main.py"", line 14 in <module>
+    greet_many(['Chad', 'Dan', 1])
+  File ""main.py"", lin 14, in <module>
+    greet_many(['Chad', 'Dan', 1])
+  File ""main.py"", line 14, fin <module>
+    greet_many(['Chad', 'Dan', 1])
+  File ""greetings.py"", line 12, in greet_many
+    print('hi, ' + person)
+TypeError: must be str, not int";
+
+            var parsedExceptions = ParseException(exceptionType, message, stacktrace, "python");
+            Assert.Collection(parsedExceptions,
+                exception =>
+                {
+                    Assert.NotEmpty(exception.Id);
+                    Assert.Equal("TypeError", exception.Type);
+                    Assert.Equal("must be str, not int", exception.Message);
+                    Assert.Collection(exception.Stack,
+                        s =>
+                        {
+                            Assert.Equal("greet_many", s.Label);
+                            Assert.Equal("greetings.py", s.Path);
+                            Assert.Equal(12, s.Line);
+                        },
+                        s =>
+                        {
+                            Assert.Empty(s.Label ?? "");
+                            Assert.Equal("main.py", s.Path);
+                            Assert.Equal(14, s.Line);
+                        },
+                        s =>
+                        {
+                            Assert.Equal("<module>", s.Label);
+                            Assert.Equal("main.py", s.Path);
+                            Assert.Equal(0, s.Line ?? 0);
+                        });
+                });
+        }
+
+        [Fact]
+        public void Should_parse_exception_with_python_stacktrace_and_malformed_cause()
+        {
+            var exceptionType = "TypeError";
+            var message = "must be str, not int";
+            // We ignore the exception type / message from the stacktrace
+            var stacktrace = @"Traceback (most recent call last):
+ValueError: bad value
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File ""main.py"", line 14, in <module>
+    greet_many(['Chad', 'Dan', 1])
+  File ""greetings.py"", line 12, in greet_many
+    print('hi, ' + person)
+TypeError: must be str, not int";
+
+            var parsedExceptions = ParseException(exceptionType, message, stacktrace, "python");
+            Assert.Collection(parsedExceptions,
+                exception =>
+                {
+                    Assert.NotEmpty(exception.Id);
+                    Assert.Equal("TypeError", exception.Type);
+                    Assert.Equal("must be str, not int", exception.Message);
+                    Assert.Collection(exception.Stack,
+                        s =>
+                        {
+                            Assert.Equal("greet_many", s.Label);
+                            Assert.Equal("greetings.py", s.Path);
+                            Assert.Equal(12, s.Line);
+                        },
+                        s =>
+                        {
+                            Assert.Equal("<module>", s.Label);
+                            Assert.Equal("main.py", s.Path);
+                            Assert.Equal(14, s.Line);
+                        });
+                });
+        }
+
+        [Fact]
+        public void Should_parse_exception_with_python_stacktrace_and_malformed_cause_message()
+        {
+            var exceptionType = "TypeError";
+            var message = "must be str, not int";
+            // We ignore the exception type / message from the stacktrace
+            var stacktrace = @"Traceback (most recent call last):
+  File ""bar.py"", line 10, in greet_many
+    greet(person)
+  File ""foo.py"", line 5, in greet
+    print(greeting + ', ' + who_to_greet(someone))
+ValueError bad value
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File ""main.py"", line 14, in <module>
+    greet_many(['Chad', 'Dan', 1])
+  File ""greetings.py"", line 12, in greet_many
+    print('hi, ' + person)
+TypeError: must be str, not int";
+
+            var parsedExceptions = ParseException(exceptionType, message, stacktrace, "python");
+            Assert.Collection(parsedExceptions,
+                exception =>
+                {
+                    Assert.NotEmpty(exception.Id);
+                    Assert.Equal("TypeError", exception.Type);
+                    Assert.Equal("must be str, not int", exception.Message);
+                    Assert.Collection(exception.Stack,
+                        s =>
+                        {
+                            Assert.Equal("greet_many", s.Label);
+                            Assert.Equal("greetings.py", s.Path);
+                            Assert.Equal(12, s.Line);
+                        },
+                        s =>
+                        {
+                            Assert.Equal("<module>", s.Label);
+                            Assert.Equal("main.py", s.Path);
+                            Assert.Equal(14, s.Line);
+                        });
+                });
+        }
 
         [Fact]
         public void Should_parse_exception_with_javascript_stacktrace()
