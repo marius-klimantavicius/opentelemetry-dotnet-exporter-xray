@@ -27,8 +27,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         private static readonly Regex _invalidSpanCharacters = new Regex(@"[^ 0-9\p{L}_.:/%&#=+,\\\-@]", RegexOptions.Compiled);
         private static readonly Regex _invalidAnnotationCharacters = new Regex(@"[^0-9a-zA-Z]", RegexOptions.Compiled);
 
-        private readonly HashSet<string> _indexedAttributes;
-        private readonly HashSet<string> _indexedResourceAttributes;
+        private readonly Func<string, bool, bool> _shouldIndexAttribute;
         private readonly bool _indexAllAttributes;
         private readonly bool _indexActivityNames;
         private readonly bool _validateTraceId;
@@ -36,15 +35,18 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         [ThreadStatic]
         private static XRayConverterCache _cache;
 
-        public XRayConverter(IEnumerable<string> indexedAttributes, bool indexAllAttributes, bool indexActivityNames, bool validateTraceId = false)
+        public XRayConverter(Func<string, bool, bool> shouldIndexAttribute, IEnumerable<string> indexedAttributes, bool indexAllAttributes, bool indexActivityNames, bool validateTraceId = false)
+            : this(GenerateShouldIndexAttribute(shouldIndexAttribute, indexedAttributes, indexAllAttributes), indexAllAttributes, indexActivityNames, validateTraceId)
         {
-            _indexedAttributes = new HashSet<string>(indexedAttributes ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
-            _indexedResourceAttributes = new HashSet<string>(
-                (indexedAttributes ?? Enumerable.Empty<string>())
-                    .Where(s => s.StartsWith(ResourceKeyPrefix, StringComparison.Ordinal))
-                    .Select(s => s.Substring(ResourceKeyPrefix.Length))
-                , StringComparer.Ordinal);
+        }
+
+        public XRayConverter(Func<string, bool, bool> shouldIndexAttribute, bool indexAllAttributes, bool indexActivityNames, bool validateTraceId = false)
+        {
             _indexAllAttributes = indexAllAttributes;
+
+            if (!indexAllAttributes)
+                _shouldIndexAttribute = shouldIndexAttribute ?? ((_, __) => false);
+
             _indexActivityNames = indexActivityNames;
             _validateTraceId = validateTraceId;
         }
@@ -57,7 +59,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             var traceId = span.TraceId.ToHexString();
             if (!IsValidXRayTraceId(traceId))
                 return null;
-            
+
             if (span.Kind != ActivityKind.Server
                 && span.ParentSpanId.ToHexString() != "0000000000000000")
             {
@@ -81,7 +83,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
 
                 var (name, @namespace) = ResolveName(context);
                 attributes.ResetConsume();
-                
+
                 var startTime = (span.StartTimeUtc - DateTime.UnixEpoch).TotalSeconds;
                 var endTime = startTime + span.Duration.TotalSeconds;
 
@@ -272,7 +274,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 foreach (var item in resourceAttributes)
                 {
                     var annoVal = item.Value;
-                    var indexed = _indexAllAttributes || _indexedResourceAttributes.Contains(item.Key);
+                    var indexed = _indexAllAttributes || _shouldIndexAttribute(item.Key, true);
                     if ((!indexed || !IsAnnotationValue(annoVal)) && IsMetadataValue(annoVal))
                     {
                         hasMetadata = WriteMetadataObject(hasMetadata, writer);
@@ -288,7 +290,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 var spanTags = context.SpanTags;
                 foreach (var (key, value) in spanTags)
                 {
-                    if (!_indexedAttributes.Contains(key) && IsMetadataValue(value))
+                    if (!_shouldIndexAttribute(key, false) && IsMetadataValue(value))
                     {
                         hasMetadata = WriteMetadataObject(hasMetadata, writer);
 
@@ -328,7 +330,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 foreach (var item in resourceAttributes)
                 {
                     var annoVal = item.Value;
-                    var indexed = _indexAllAttributes || _indexedResourceAttributes.Contains(item.Key);
+                    var indexed = _indexAllAttributes || _shouldIndexAttribute(item.Key, true);
                     if (indexed && IsAnnotationValue(annoVal))
                     {
                         hasAnnotations = WriteAnnotationsObject(hasAnnotations, writer);
@@ -350,7 +352,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             var spanTags = context.SpanTags;
             foreach (var item in spanTags)
             {
-                if (!_indexAllAttributes && !_indexedAttributes.Contains(item.Key))
+                if (!_indexAllAttributes && !_shouldIndexAttribute(item.Key, false))
                     continue;
 
                 var key = FixAnnotationKey(item.Key);
@@ -498,6 +500,38 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         private static void WriteValue(Utf8JsonWriter writer, object value)
         {
             JsonSerializer.Serialize(writer, value);
+        }
+
+        private static Func<string, bool, bool> GenerateShouldIndexAttribute(Func<string, bool, bool> shouldIndexAttribute, IEnumerable<string> indexedAttributes, bool indexAllAttributes)
+        {
+            if (indexAllAttributes)
+                return null;
+            
+            var indexedAttributeSet = new HashSet<string>(indexedAttributes ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
+            var indexedResourceAttributes = new HashSet<string>(
+                (indexedAttributes ?? Enumerable.Empty<string>())
+                .Where(s => s.StartsWith(ResourceKeyPrefix, StringComparison.Ordinal))
+                .Select(s => s.Substring(ResourceKeyPrefix.Length)),
+                StringComparer.Ordinal);
+
+            if (indexedAttributeSet.Count > 0)
+            {
+                if (shouldIndexAttribute == null)
+                    return (name, isResource) => isResource ? indexedResourceAttributes.Contains(name) : indexedAttributeSet.Contains(name);
+
+                return (name, isResource) =>
+                {
+                    if (isResource ? indexedResourceAttributes.Contains(name) : indexedAttributeSet.Contains(name))
+                        return true;
+
+                    return shouldIndexAttribute(name, isResource);
+                };
+            }
+
+            if (shouldIndexAttribute != null)
+                return shouldIndexAttribute;
+
+            return (_, __) => false;
         }
     }
 }

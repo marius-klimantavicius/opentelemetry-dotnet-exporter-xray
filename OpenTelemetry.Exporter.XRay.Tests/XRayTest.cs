@@ -93,7 +93,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
 
         internal static XRayConverter CreateDefaultConverter()
         {
-            return new XRayConverter(Enumerable.Empty<string>(), true, false);
+            return new XRayConverter(null, null, true, false);
         }
 
         internal static Resource ConstructDefaultResource()

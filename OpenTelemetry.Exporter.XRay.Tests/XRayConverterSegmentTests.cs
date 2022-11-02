@@ -226,7 +226,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             var resource = ConstructDefaultResource();
             var span = ConstructClientSpan(parentSpanID, spanName, ActivityStatusCode.Unset, "OK", attributes);
 
-            var converter = new XRayConverter(null, false, false);
+            var converter = new XRayConverter(null, null, false, false);
             var segment = ConvertSegment(converter, span, resource);
             Assert.NotNull(segment.Sql);
             Assert.NotNull(segment.Service);
@@ -338,7 +338,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             span.SetEndTime(DateTime.UtcNow.AddSeconds(2));
             ConstructTimedEventsWithReceivedMessageEvent(span);
 
-            var converter = new XRayConverter(null, false, false, true);
+            var converter = new XRayConverter(null, null, false, false, true);
             var segmentDocument = converter.Convert(resource, span);
             Assert.Null(segmentDocument);
         }
@@ -364,7 +364,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             span.SetStartTime(DateTime.UtcNow);
             span.SetEndTime(DateTime.UtcNow.AddSeconds(2));
 
-            var converter = new XRayConverter(null, false, false, true);
+            var converter = new XRayConverter(null, null, false, false, true);
             var segmentDocument = converter.Convert(Resource.Empty, span);
             Assert.Null(segmentDocument);
         }
@@ -425,7 +425,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             var resource = ConstructDefaultResource();
             var span = ConstructServerSpan(parentSpanID, spanName, ActivityStatusCode.Error, "OK", attributes);
 
-            var converter = new XRayConverter(null, false, false);
+            var converter = new XRayConverter(null, null, false, false);
             var segment = ConvertSegment(converter, span, resource);
 
             Assert.Null(segment.Annotations);
@@ -453,7 +453,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             var resource = ConstructDefaultResource();
             var span = ConstructClientSpan(parentSpanID, spanName, ActivityStatusCode.Error, "OK", attributes);
 
-            var converter = new XRayConverter(null, false, false);
+            var converter = new XRayConverter(null, null, false, false);
             var segment = ConvertSegment(converter, span, resource);
 
             Assert.Null(segment.Annotations);
@@ -482,10 +482,52 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             var resource = ConstructDefaultResource();
             var span = ConstructServerSpan(parentSpanID, spanName, ActivityStatusCode.Error, "OK", attributes);
 
-            var converter = new XRayConverter(new[] { "attr1@1", "not_exist" }, false, false);
+            var converter = new XRayConverter(null, new[] { "attr1@1", "not_exist" }, false, false);
             var segment = ConvertSegment(converter, span, resource);
 
             Assert.Equal("val1", segment.Annotations["attr1_1"].ToString());
+            Assert.Equal("val2", segment.Metadata["default"]["attr2@2"].ToString());
+        }
+
+        [Fact]
+        public void Should_map_span_with_attributes_partially_indexed_function()
+        {
+            var spanName = "/api/locations";
+            var parentSpanID = ActivitySpanId.CreateRandom();
+            var attributes = new Dictionary<string, object>
+            {
+                ["attr1@1"] = "val1",
+                ["attr2@2"] = "val2",
+            };
+            var resource = ConstructDefaultResource();
+            var span = ConstructServerSpan(parentSpanID, spanName, ActivityStatusCode.Error, "OK", attributes);
+
+            var converter = new XRayConverter((name, _) => name == "attr1@1" || name == "not_exist", false, false);
+            var segment = ConvertSegment(converter, span, resource);
+
+            Assert.Equal("val1", segment.Annotations["attr1_1"].ToString());
+            Assert.Equal("val2", segment.Metadata["default"]["attr2@2"].ToString());
+        }
+
+        [Fact]
+        public void Should_map_span_with_attributes_partially_indexed_function_and_list()
+        {
+            var spanName = "/api/locations";
+            var parentSpanID = ActivitySpanId.CreateRandom();
+            var attributes = new Dictionary<string, object>
+            {
+                ["attr1@1"] = "val1",
+                ["attr2@2"] = "val2",
+                ["attr3@3"] = "val3",
+            };
+            var resource = ConstructDefaultResource();
+            var span = ConstructServerSpan(parentSpanID, spanName, ActivityStatusCode.Error, "OK", attributes);
+
+            var converter = new XRayConverter((name, _) => name == "attr1@1" || name == "not_exist", new[] { "attr3@3" }, false, false);
+            var segment = ConvertSegment(converter, span, resource);
+
+            Assert.Equal("val1", segment.Annotations["attr1_1"].ToString());
+            Assert.Equal("val3", segment.Annotations["attr3_3"].ToString());
             Assert.Equal("val2", segment.Metadata["default"]["attr2@2"].ToString());
         }
 
@@ -502,7 +544,27 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             var resource = ConstructDefaultResource();
             var span = ConstructServerSpan(parentSpanID, spanName, ActivityStatusCode.Error, "OK", attributes);
 
-            var converter = new XRayConverter(new[] { "attr1@1", "not_exist" }, true, false);
+            var converter = new XRayConverter(null, new[] { "attr1@1", "not_exist" }, true, false);
+            var segment = ConvertSegment(converter, span, resource);
+
+            Assert.Equal("val1", segment.Annotations["attr1_1"].ToString());
+            Assert.Equal("val2", segment.Annotations["attr2_2"].ToString());
+        }
+
+        [Fact]
+        public void Should_map_span_with_attributes_all_indexed_function()
+        {
+            var spanName = "/api/locations";
+            var parentSpanID = ActivitySpanId.CreateRandom();
+            var attributes = new Dictionary<string, object>
+            {
+                ["attr1@1"] = "val1",
+                ["attr2@2"] = "val2",
+            };
+            var resource = ConstructDefaultResource();
+            var span = ConstructServerSpan(parentSpanID, spanName, ActivityStatusCode.Error, "OK", attributes);
+
+            var converter = new XRayConverter((name, _) => name == "attr1@1" || name == "not_exist", true, false);
             var segment = ConvertSegment(converter, span, resource);
 
             Assert.Equal("val1", segment.Annotations["attr1_1"].ToString());
@@ -517,7 +579,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             var resource = ConstructDefaultResource();
             var span = ConstructServerSpan(parentSpanID, spanName, ActivityStatusCode.Error, "OK", null);
 
-            var converter = new XRayConverter(new[]
+            var converter = new XRayConverter(null, new[]
             {
                 "otel.resource.string.key",
                 "otel.resource.int.key",
@@ -540,6 +602,69 @@ namespace OpenTelemetry.Exporter.XRay.Tests
         }
 
         [Fact]
+        public void Should_index_resource_attributes_function()
+        {
+            var spanName = "/api/locations";
+            var parentSpanID = ActivitySpanId.CreateRandom();
+            var resource = ConstructDefaultResource();
+            var span = ConstructServerSpan(parentSpanID, spanName, ActivityStatusCode.Error, "OK", null);
+
+            var set = new HashSet<string>(new[]
+            {
+                "string.key",
+                "int.key",
+                "double.key",
+                "bool.key",
+                "map.key",
+                "array.key",
+            }, StringComparer.Ordinal);
+            var converter = new XRayConverter((name, isResource) => isResource && set.Contains(name), false, false);
+            var segment = ConvertSegment(converter, span, resource);
+
+            Assert.Equal("string", segment.Annotations["otel_resource_string_key"].ToString());
+            Assert.Equal(10, ((JsonElement)segment.Annotations["otel_resource_int_key"]).GetInt32());
+            Assert.Equal(5.0, ((JsonElement)segment.Annotations["otel_resource_double_key"]).GetDouble());
+            Assert.True(((JsonElement)segment.Annotations["otel_resource_bool_key"]).GetBoolean());
+
+            var metadataArray = ((JsonElement)segment.Metadata["default"]["otel.resource.array.key"]).EnumerateArray().Select(s => s.ToString()).ToList();
+            Assert.Collection(metadataArray,
+                s => Assert.Equal("foo", s),
+                s => Assert.Equal("bar", s));
+        }
+
+        [Fact]
+        public void Should_index_resource_attributes_function_and_list()
+        {
+            var spanName = "/api/locations";
+            var parentSpanID = ActivitySpanId.CreateRandom();
+            var resource = ConstructDefaultResource();
+            var span = ConstructServerSpan(parentSpanID, spanName, ActivityStatusCode.Error, "OK", null);
+
+            var converter = new XRayConverter((name, isResource) =>
+                isResource && (
+                    name == "bool.key" ||
+                    name == "map.key" ||
+                    name == "array.key"
+                ), new[]
+            {
+                "otel.resource.string.key",
+                "otel.resource.int.key",
+                "otel.resource.double.key",
+            }, false, false);
+            var segment = ConvertSegment(converter, span, resource);
+
+            Assert.Equal("string", segment.Annotations["otel_resource_string_key"].ToString());
+            Assert.Equal(10, ((JsonElement)segment.Annotations["otel_resource_int_key"]).GetInt32());
+            Assert.Equal(5.0, ((JsonElement)segment.Annotations["otel_resource_double_key"]).GetDouble());
+            Assert.True(((JsonElement)segment.Annotations["otel_resource_bool_key"]).GetBoolean());
+
+            var metadataArray = ((JsonElement)segment.Metadata["default"]["otel.resource.array.key"]).EnumerateArray().Select(s => s.ToString()).ToList();
+            Assert.Collection(metadataArray,
+                s => Assert.Equal("foo", s),
+                s => Assert.Equal("bar", s));
+        }
+
+        [Fact]
         public void Should_not_index_resource_attributes_if_subsegment()
         {
             var spanName = "/api/locations";
@@ -547,7 +672,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             var resource = ConstructDefaultResource();
             var span = ConstructClientSpan(parentSpanID, spanName, ActivityStatusCode.Error, "OK", null);
 
-            var converter = new XRayConverter(new[]
+            var converter = new XRayConverter(null, new[]
             {
                 "otel.resource.string.key",
                 "otel.resource.int.key",
@@ -792,7 +917,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
                 ["value2"] = true,
             });
 
-            var converter = new XRayConverter(null, false, false);
+            var converter = new XRayConverter(null, null, false, false);
             var segment = ConvertSegment(converter, span, resource);
 
             Assert.NotNull(segment.Metadata);
@@ -852,7 +977,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
 
             var dateTimeOffset = DateTimeOffset.UtcNow.AddDays(-2);
             span.SetTag("DateTimeOffset_value", dateTimeOffset);
-            
+
             var guid = Guid.NewGuid();
             span.SetTag("Guid_value", guid);
 
@@ -862,10 +987,10 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             var version = new Version(23, 34);
             span.SetTag("Version_value", version);
 
-            var converter = new XRayConverter(null, true, false);
+            var converter = new XRayConverter(null, null, true, false);
             var segment = ConvertSegment(converter, span, resource);
             var annotations = segment.Annotations;
-            
+
             Assert.Equal((byte)15, ((JsonElement)annotations["byte_value"]).GetByte());
             Assert.Equal(24M, ((JsonElement)annotations["decimal_value"]).GetDecimal());
             Assert.Equal((short)21, ((JsonElement)annotations["short_value"]).GetInt16());
@@ -880,10 +1005,10 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             Assert.Equal(guid, ((JsonElement)annotations["Guid_value"]).GetGuid());
             Assert.Equal(uri.ToString(), ((JsonElement)annotations["Uri_value"]).GetString());
 
-            #if NET6_0_OR_GREATER
+#if NET6_0_OR_GREATER
             Assert.Equal(timeSpan.ToString(), ((JsonElement)annotations["TimeSpan_value"]).GetString());
             Assert.Equal(version.ToString(), ((JsonElement)annotations["Version_value"]).GetString());
-            #endif
+#endif
         }
 
         private Activity ConstructClientSpan(ActivitySpanId parentSpanId, string name, ActivityStatusCode code, string message, IEnumerable<KeyValuePair<string, object>> attributes)

@@ -26,13 +26,46 @@ namespace OpenTelemetry.Exporter.XRay
         public Func<IAmazonXRay> AmazonXRayClientFactory { get; set; }
 
         /// <summary>
+        /// <para>
         /// Gets or sets a list of indexed attributes to be passed as annotations to X-Ray.
+        /// Resource attributes are passed with "otel.resource." prefix.
+        /// </para>
+        /// <para>
+        /// This is ignored if <see cref="IndexAllAttributes"/> is provided.
+        /// </para>
         /// </summary>
         public IEnumerable<string> IndexedAttributes { get; set; } = Enumerable.Empty<string>();
 
         /// <summary>
-        /// Gets or sets a value indicating whether all unknown attributes are to be passed annotations to X-Ray.
-        /// If false the only the attributes listed in <see cref="IndexedAttributes"/> will be passed.
+        /// <para>
+        /// Gets or sets the function to determine whether the attribute that is not in the <see cref="IndexedAttributes"/> list
+        /// should be passed via annotations to X-Ray.
+        /// If this function returns false then the attribute is passed via metadata to X-Ray.
+        /// </para>
+        /// <para>
+        /// The first argument is the name of attributes/tag.
+        /// The second argument is whether the name refers to resource attribute/tag (true) or to activity tag/attribute.
+        /// If resource attribute is indexed then "otel_resource_" prefix is prepended to the annotation key.
+        /// If resource attribute is not indexed then "otel.resource." prefix is prepended to the metadata key.
+        /// </para>
+        /// <para>
+        /// This function is not invoked for attributes listed in <see cref="IndexedAttributes"/>.
+        /// </para>
+        /// <para>
+        /// This is ignored if <see cref="IndexAllAttributes"/> is provided.
+        /// </para>
+        /// </summary>
+        public Func<string, bool, bool> ShouldIndexAttribute { get; set; }
+
+        /// <summary>
+        /// <para>
+        /// Gets or sets a value indicating whether all unknown attributes are to be passed as annotations to X-Ray.
+        /// If false the attributes are passed based on <see cref="IndexedAttributes"/> and
+        /// <see cref="ShouldIndexAttribute"/> options.
+        /// </para>
+        /// <para>
+        /// This overrides <see cref="ShouldIndexAttribute"/> and <see cref="IndexedAttributes"/>.
+        /// </para>
         /// </summary>
         public bool IndexAllAttributes { get; set; } = true;
 

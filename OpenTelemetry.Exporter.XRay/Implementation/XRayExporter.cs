@@ -16,17 +16,19 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
 
         [ThreadStatic]
         private static PutTraceSegmentsRequest _requestCache;
-        
+
         private readonly IAmazonXRay _client;
         private readonly XRayConverter _converter;
 
         public XRayExporter(XRayExporterOptions options)
         {
             _client = options.AmazonXRayClientFactory();
+
             _converter = new XRayConverter(
-                options.IndexedAttributes, 
-                options.IndexAllAttributes, 
-                options.IndexActivityNames, 
+                options.ShouldIndexAttribute,
+                options.IndexedAttributes,
+                options.IndexAllAttributes,
+                options.IndexActivityNames,
                 options.ValidateTraceId);
         }
 
@@ -64,12 +66,12 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 {
                     request.TraceSegmentDocuments = documentList;
                     _client.PutTraceSegmentsAsync(request).GetAwaiter().GetResult();
-                    
+
                     documentList.Clear();
                 }
 
                 request.TraceSegmentDocuments = null;
-                
+
                 _listCache = documentList;
                 _requestCache = request;
 
