@@ -209,7 +209,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                         {
                             var lineStr = path[(colonIdx + 1)..];
                             path = path[..colonIdx];
-                            int.TryParse(lineStr, NumberStyles.Any, CultureInfo.InvariantCulture, out lineNumber);
+                            int.TryParse(lineStr, NumberStyles.Integer, CultureInfo.InvariantCulture, out lineNumber);
                         }
 
                         hasStack = WriteExceptionStack(writer, hasStack, path, label, lineNumber);
@@ -396,7 +396,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                     var lineNumberPart = line[..index];
                     var lineNumber = 0;
                     if (lineNumberPart.StartsWith(" line "))
-                        int.TryParse(lineNumberPart[6..], NumberStyles.Any, CultureInfo.InvariantCulture, out lineNumber);
+                        int.TryParse(lineNumberPart[6..], NumberStyles.Integer, CultureInfo.InvariantCulture, out lineNumber);
 
                     line = line[(index + 1)..];
 
@@ -498,15 +498,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 r.ReadLine();
                 line = r.Line;
 
-                // TODO (low): remove regex/memory allocations here
-                var match = _goLineNumber.Match(line.ToString());
-                var lineNumber = 0;
-                var path = default(string);
-                if (match.Success)
-                {
-                    path = match.Groups[1].Value;
-                    int.TryParse(match.Groups[2].Value, NumberStyles.Any, CultureInfo.InvariantCulture, out lineNumber);
-                }
+                var path = ParsePathAndLineNumber(line, out var lineNumber);
 
                 hasStack = WriteExceptionStack(writer, hasStack, path, label, lineNumber);
             }
@@ -514,6 +506,58 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             if (hasStack)
             {
                 writer.WriteEndArray();
+            }
+
+            static ReadOnlySpan<char> ParsePathAndLineNumber(ReadOnlySpan<char> line, out int lineNumber)
+            {
+                lineNumber = 0;
+                
+                // ([^:\s]+)\:(\d+)
+                while (!line.IsEmpty)
+                {
+                    var index = line.IndexOf(':');
+                    if (index < 0)
+                        return ReadOnlySpan<char>.Empty;
+
+                    var next = line[(index + 1)..];
+                    var numberPart = GetNumber(next);
+                    if (!numberPart.IsEmpty)
+                    {
+                        var pathPart = GetPath(line[..index]);
+                        if (!pathPart.IsEmpty)
+                        {
+                            int.TryParse(numberPart, NumberStyles.Integer, CultureInfo.InvariantCulture, out lineNumber);
+                            return pathPart;
+                        }
+                    }
+
+                    line = next;
+                }
+
+                return ReadOnlySpan<char>.Empty;
+            }
+
+            static ReadOnlySpan<char> GetNumber(ReadOnlySpan<char> part)
+            {
+                for (var i = 0; i < part.Length; i++)
+                {
+                    if (!char.IsDigit(part[i]))
+                        return part[..i];
+                }
+
+                return part;
+            }
+
+            static ReadOnlySpan<char> GetPath(ReadOnlySpan<char> part)
+            {
+                for (var i = part.Length - 1; i >= 0; i--)
+                {
+                    var c = part[i];
+                    if (c == ':' || char.IsWhiteSpace(c))
+                        return part[(i + 1)..];
+                }
+
+                return part;
             }
         }
 
