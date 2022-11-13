@@ -1,8 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFrameworks>netcoreapp3.1;net5;net6</TargetFrameworks>
+        <TargetFrameworks>netcoreapp3.1;net5;net6;net7</TargetFrameworks>
         <IsPackable>false</IsPackable>
+        <CheckEolTargetFramework>false</CheckEolTargetFramework>
     </PropertyGroup>
 
     <ItemGroup>
