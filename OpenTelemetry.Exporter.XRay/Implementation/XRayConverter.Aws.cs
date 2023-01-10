@@ -153,6 +153,14 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             if (!string.IsNullOrEmpty(cloud) && cloud != XRayAwsConventions.AttributeCloudProviderAws)
                 return;
 
+            // Favor Semantic Conventions for specific SQS and DynamoDB attributes.
+            if (spanTags.TryGetAttributeMessagingUrl(out value))
+                queueUrl = value.AsString();
+            if (spanTags.TryGetAttributeAwsDynamoDbTableNames(out value))
+                tableName = value.AsString();
+
+            spanTags.ResetConsume();
+            
             var writer = context.Writer;
             writer.WritePropertyName(XRayField.Aws);
             writer.WriteStartObject();
@@ -227,7 +235,9 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             if (logGroupArns != null)
                 hasArns = WriteLogGroupMetadata(writer, logGroupArns, true);
             if (!hasArns && logGroups != null)
-                WriteLogGroupMetadata(writer, logGroups, false);
+                hasArns = WriteLogGroupMetadata(writer, logGroups, false);
+            if (!hasArns && _logGroupNames != null)
+                WriteLogGroupMetadata(writer, _logGroupNames, false);
 
             if (!string.IsNullOrEmpty(sdkName) && !string.IsNullOrEmpty(sdkLanguage))
                 sdk = sdkName + " for " + sdkLanguage;

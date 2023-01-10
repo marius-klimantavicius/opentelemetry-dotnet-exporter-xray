@@ -229,6 +229,22 @@ namespace OpenTelemetry.Exporter.XRay.Tests
         }
 
         [Fact]
+        public void Should_map_sqs_with_semantic_convention_attribute()
+        {
+            var activity = new Activity("Test");
+
+            var queueUrl = "https://sqs.use1.amazonaws.com/Meltdown-Alerts";
+            activity.SetTag(XRayConventions.AttributeMessagingUrl, queueUrl);
+
+            var segment = ConvertDefault(activity);
+
+            Assert.NotNull(segment.Aws);
+
+            var awsData = segment.Aws;
+            Assert.Equal(queueUrl, awsData.QueueUrl);
+        }
+
+        [Fact]
         public void Should_map_dynamo_db()
         {
             var activity = new Activity("Test");
@@ -256,6 +272,22 @@ namespace OpenTelemetry.Exporter.XRay.Tests
 
             var tableName = "MyTable";
             activity.SetTag(XRayConventions.AttributeAwsTableName2, tableName);
+
+            var segment = ConvertDefault(activity);
+
+            Assert.NotNull(segment.Aws);
+
+            var awsData = segment.Aws;
+            Assert.Equal(tableName, awsData.TableName);
+        }
+
+        [Fact]
+        public void Should_map_dynamo_db_with_semantic_convention_attribute()
+        {
+            var activity = new Activity("Test");
+
+            var tableName = "MyTable";
+            activity.SetTag(XRayConventions.AttributeAwsDynamoDbTableNames, tableName);
 
             var segment = ConvertDefault(activity);
 
@@ -422,6 +454,22 @@ namespace OpenTelemetry.Exporter.XRay.Tests
                     Assert.Equal("group2", s.LogGroup);
                 });
         }
-        
+     
+        [Fact]
+        public void Should_map_log_group_names()
+        {
+            var activity = new Activity("Test");
+            var converter = new XRayConverter(null, null, true, false, logGroupNames: new[] { "group1", "group2" });
+            var segment = ConvertSegment(converter, activity);
+
+            Assert.NotNull(segment.Aws);
+
+            var awsData = segment.Aws;
+            Assert.NotNull(awsData.CloudWatchLogs);
+            Assert.Collection(awsData.CloudWatchLogs,
+                s => Assert.Equal("group1", s.LogGroup),
+                s => Assert.Equal("group2", s.LogGroup));
+        }
+   
     }
 }

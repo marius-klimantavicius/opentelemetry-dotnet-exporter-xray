@@ -29,7 +29,8 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 options.IndexedAttributes,
                 options.IndexAllAttributes,
                 options.IndexActivityNames,
-                options.ValidateTraceId);
+                options.ValidateTraceId,
+                options.LogGroupNames);
         }
 
         public override ExportResult Export(in Batch<Activity> batch)

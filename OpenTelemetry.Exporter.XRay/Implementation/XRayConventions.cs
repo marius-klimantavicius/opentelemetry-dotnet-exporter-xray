@@ -39,6 +39,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         public const string AttributeMessageType = "message.type";
 
         public const string AttributeMessagingPayloadSize = "messaging.message_payload_size_bytes";
+        public const string AttributeMessagingUrl = "messaging.url";
 
         public const string AttributeExceptionType = "exception.type";
         public const string AttributeExceptionMessage = "exception.message";
@@ -90,6 +91,8 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         public const string AttributeAwsTableName = "aws.table_name";
         public const string AttributeAwsTableName2 = "aws.table.name";
 
+        public const string AttributeAwsDynamoDbTableNames = "aws.dynamodb.table_names";
+            
         public const string ExceptionEventName = "exception";
     }
 }

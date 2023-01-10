@@ -1011,6 +1011,41 @@ namespace OpenTelemetry.Exporter.XRay.Tests
 #endif
         }
 
+        [Fact]
+        public void Should_map_log_group_names()
+        {
+            var spanName = "api/locations";
+            var parentSpanID = ActivitySpanId.CreateRandom();
+            var resource = ConstructDefaultResource();
+            var span = ConstructServerSpan(parentSpanID, spanName, ActivityStatusCode.Error, "OK", null);
+            ConstructTimedEventsWithSentMessageEvent(span);
+
+            var converter = new XRayConverter(null, null, true, false, logGroupNames: new[] { "my-logGroup-1" });
+            var segment = ConvertSegment(converter, span, resource);
+            var awsData = segment.Aws;
+            Assert.NotNull(awsData.CloudWatchLogs);
+            Assert.Collection(awsData.CloudWatchLogs,
+                s => Assert.Equal("my-logGroup-1", s.LogGroup));
+        }
+
+        [Fact]
+        public void Should_map_multiple_log_group_names()
+        {
+            var spanName = "api/locations";
+            var parentSpanID = ActivitySpanId.CreateRandom();
+            var resource = ConstructDefaultResource();
+            var span = ConstructServerSpan(parentSpanID, spanName, ActivityStatusCode.Error, "OK", null);
+            ConstructTimedEventsWithSentMessageEvent(span);
+
+            var converter = new XRayConverter(null, null, true, false, logGroupNames: new[] { "my-logGroup-1", "my-logGroup-2" });
+            var segment = ConvertSegment(converter, span, resource);
+            var awsData = segment.Aws;
+            Assert.NotNull(awsData.CloudWatchLogs);
+            Assert.Collection(awsData.CloudWatchLogs,
+                s => Assert.Equal("my-logGroup-1", s.LogGroup),
+                s => Assert.Equal("my-logGroup-2", s.LogGroup));
+        }
+
         private Activity ConstructClientSpan(ActivitySpanId parentSpanId, string name, ActivityStatusCode code, string message, IEnumerable<KeyValuePair<string, object>> attributes)
         {
             var traceId = XRayTraceId.Generate();

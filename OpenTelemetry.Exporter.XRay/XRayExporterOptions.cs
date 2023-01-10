@@ -76,6 +76,11 @@ namespace OpenTelemetry.Exporter.XRay
         public bool IndexActivityNames { get; set; } = true;
 
         /// <summary>
+        /// Gets or sets a value indicating which log group names to emit if no log groups or log group arns are available.
+        /// </summary>
+        public IEnumerable<string> LogGroupNames { get; set; }
+
+        /// <summary>
         /// Gets or sets a value indicating whether to validate passed trace id.
         /// If the trace id is invalid or expired then the activity will be rejected/ignored.
         /// </summary>

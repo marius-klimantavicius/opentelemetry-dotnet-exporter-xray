@@ -30,17 +30,18 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         private readonly Func<string, bool, bool> _shouldIndexAttribute;
         private readonly bool _indexAllAttributes;
         private readonly bool _indexActivityNames;
+        private readonly IEnumerable<string> _logGroupNames;
         private readonly bool _validateTraceId;
 
         [ThreadStatic]
         private static XRayConverterCache _cache;
 
-        public XRayConverter(Func<string, bool, bool> shouldIndexAttribute, IEnumerable<string> indexedAttributes, bool indexAllAttributes, bool indexActivityNames, bool validateTraceId = false)
-            : this(GenerateShouldIndexAttribute(shouldIndexAttribute, indexedAttributes, indexAllAttributes), indexAllAttributes, indexActivityNames, validateTraceId)
+        public XRayConverter(Func<string, bool, bool> shouldIndexAttribute, IEnumerable<string> indexedAttributes, bool indexAllAttributes, bool indexActivityNames, bool validateTraceId = false, IEnumerable<string> logGroupNames = null)
+            : this(GenerateShouldIndexAttribute(shouldIndexAttribute, indexedAttributes, indexAllAttributes), indexAllAttributes, indexActivityNames, validateTraceId, logGroupNames)
         {
         }
 
-        public XRayConverter(Func<string, bool, bool> shouldIndexAttribute, bool indexAllAttributes, bool indexActivityNames, bool validateTraceId = false)
+        public XRayConverter(Func<string, bool, bool> shouldIndexAttribute, bool indexAllAttributes, bool indexActivityNames, bool validateTraceId = false, IEnumerable<string> logGroupNames = null)
         {
             _indexAllAttributes = indexAllAttributes;
 
@@ -48,6 +49,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 _shouldIndexAttribute = shouldIndexAttribute ?? ((_, __) => false);
 
             _indexActivityNames = indexActivityNames;
+            _logGroupNames = logGroupNames;
             _validateTraceId = validateTraceId;
         }
 

@@ -135,3 +135,7 @@ and `Activity.OperationName` are passed as annotations.
 #### `ValidateTraceId` (optional, default: `false`)
 
 If `true` then will reject/ignore activities that have either invalid aws trace id or trace id has expired.
+
+#### `LogGroupNames` (optional, default: `null`)
+
+List of log group names for cloud watch if not provided by resource attributes (`"aws.log.group.names"` and `"aws.log.group.arns"`).
