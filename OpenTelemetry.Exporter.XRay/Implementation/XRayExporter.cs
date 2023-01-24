@@ -53,7 +53,9 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                     if (totalLength + document.Length > MaxDocumentSize || documentList.Count >= MaxDocumentCount)
                     {
                         request.TraceSegmentDocuments = documentList;
-                        _client.PutTraceSegmentsAsync(request).GetAwaiter().GetResult();
+                        var response = _client.PutTraceSegmentsAsync(request).GetAwaiter().GetResult();
+                        if (response?.UnprocessedTraceSegments?.Count > 0)
+                            XRayExporterEventSource.Log.UnprocessedTraceSegments(response.UnprocessedTraceSegments);
 
                         totalLength = 0;
                         documentList.Clear();
@@ -66,7 +68,9 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 if (documentList.Count > 0)
                 {
                     request.TraceSegmentDocuments = documentList;
-                    _client.PutTraceSegmentsAsync(request).GetAwaiter().GetResult();
+                    var response = _client.PutTraceSegmentsAsync(request).GetAwaiter().GetResult();
+                    if (response?.UnprocessedTraceSegments?.Count > 0)
+                        XRayExporterEventSource.Log.UnprocessedTraceSegments(response.UnprocessedTraceSegments);
 
                     documentList.Clear();
                 }

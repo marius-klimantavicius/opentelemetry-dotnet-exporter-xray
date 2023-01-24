@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics.Tracing;
+using Amazon.XRay.Model;
 
 namespace OpenTelemetry.Exporter.XRay.Implementation
 {
@@ -21,6 +23,37 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         public void FailedExport(string exception)
         {
             WriteEvent(1, exception);
+        }
+
+        [NonEvent]
+        public void UnprocessedTraceSegments(List<UnprocessedTraceSegment> list)
+        {
+            if (IsEnabled(EventLevel.Warning, EventKeywords.All))
+            {
+                var sb = new ValueStringBuilder();
+                foreach (var item in list)
+                {
+                    if (sb.Length > 0)
+                        sb.Append(", ");
+
+                    sb.Append('{');
+                    sb.Append("id: ");
+                    sb.Append(item.Id);
+                    sb.Append(", errorCode: ");
+                    sb.Append(item.ErrorCode);
+                    sb.Append(", message: ");
+                    sb.Append(item.Message);
+                    sb.Append("}");
+                }
+
+                UnprocessedTraceSegments(sb.ToString());
+            }
+        }
+
+        [Event(2, Message = "Some activities were rejected by x-ray: {0}", Level = EventLevel.Warning)]
+        public void UnprocessedTraceSegments(string errors)
+        {
+            WriteEvent(2, errors);
         }
     }
 }
