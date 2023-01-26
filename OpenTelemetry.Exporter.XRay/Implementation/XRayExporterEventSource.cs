@@ -55,5 +55,14 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         {
             WriteEvent(2, errors);
         }
+
+        [Event(3, Message = "Received trace ID: {0} is not a valid X-Ray trace ID", Level = EventLevel.Warning)]
+        public void InvalidXRayTraceId(string traceId)
+        {
+            if (IsEnabled(EventLevel.Warning, EventKeywords.All))
+            {
+                WriteEvent(3, traceId);
+            }
+        }
     }
 }

@@ -60,7 +60,10 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
 
             var traceId = span.TraceId.ToHexString();
             if (!IsValidXRayTraceId(traceId))
+            {
+                XRayExporterEventSource.Log.InvalidXRayTraceId(traceId);
                 return null;
+            }
 
             if (span.Kind != ActivityKind.Server
                 && span.ParentSpanId.ToHexString() != "0000000000000000")
