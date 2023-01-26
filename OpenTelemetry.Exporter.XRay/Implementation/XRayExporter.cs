@@ -30,6 +30,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 options.IndexAllAttributes,
                 options.IndexActivityNames,
                 options.ValidateTraceId,
+                options.OverwriteInvalidTraceId,
                 options.LogGroupNames);
         }
 

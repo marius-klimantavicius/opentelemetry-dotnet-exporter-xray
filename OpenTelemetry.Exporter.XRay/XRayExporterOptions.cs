@@ -87,6 +87,12 @@ namespace OpenTelemetry.Exporter.XRay
         public bool ValidateTraceId { get; set; } = false;
 
         /// <summary>
+        /// Gets or sets a value indicating whether to generate a valid x-ray trace id and overwrite incoming.
+        /// This option is ignored if ValidateTraceId is false
+        /// </summary>
+        public bool OverwriteInvalidTraceId { get; set; } = false;
+
+        /// <summary>
         /// Gets or sets the type of Export Processor to be used.
         /// </summary>
         public ExportProcessorType ExportProcessorType { get; set; } = ExportProcessorType.Batch;

@@ -32,16 +32,17 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         private readonly bool _indexActivityNames;
         private readonly IEnumerable<string> _logGroupNames;
         private readonly bool _validateTraceId;
+        private readonly bool _overwriteInvalidTraceId;
 
         [ThreadStatic]
         private static XRayConverterCache _cache;
 
-        public XRayConverter(Func<string, bool, bool> shouldIndexAttribute, IEnumerable<string> indexedAttributes, bool indexAllAttributes, bool indexActivityNames, bool validateTraceId = false, IEnumerable<string> logGroupNames = null)
-            : this(GenerateShouldIndexAttribute(shouldIndexAttribute, indexedAttributes, indexAllAttributes), indexAllAttributes, indexActivityNames, validateTraceId, logGroupNames)
+        public XRayConverter(Func<string, bool, bool> shouldIndexAttribute, IEnumerable<string> indexedAttributes, bool indexAllAttributes, bool indexActivityNames, bool validateTraceId = false, bool overwriteInvalidTraceId = false, IEnumerable<string> logGroupNames = null)
+            : this(GenerateShouldIndexAttribute(shouldIndexAttribute, indexedAttributes, indexAllAttributes), indexAllAttributes, indexActivityNames, validateTraceId, overwriteInvalidTraceId, logGroupNames)
         {
         }
 
-        public XRayConverter(Func<string, bool, bool> shouldIndexAttribute, bool indexAllAttributes, bool indexActivityNames, bool validateTraceId = false, IEnumerable<string> logGroupNames = null)
+        public XRayConverter(Func<string, bool, bool> shouldIndexAttribute, bool indexAllAttributes, bool indexActivityNames, bool validateTraceId = false, bool overwriteInvalidTraceId = false, IEnumerable<string> logGroupNames = null)
         {
             _indexAllAttributes = indexAllAttributes;
 
@@ -51,6 +52,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             _indexActivityNames = indexActivityNames;
             _logGroupNames = logGroupNames;
             _validateTraceId = validateTraceId;
+            _overwriteInvalidTraceId = overwriteInvalidTraceId;
         }
 
         public string Convert(Resource resource, Activity span)
@@ -62,7 +64,10 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             if (!IsValidXRayTraceId(traceId))
             {
                 XRayExporterEventSource.Log.InvalidXRayTraceId(traceId);
-                return null;
+                if (!_overwriteInvalidTraceId)
+                    return null;
+
+                traceId = XRayTraceId.Generate().ToHexString();
             }
 
             if (span.Kind != ActivityKind.Server
@@ -511,7 +516,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         {
             if (indexAllAttributes)
                 return null;
-            
+
             var indexedAttributeSet = new HashSet<string>(indexedAttributes ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
             var indexedResourceAttributes = new HashSet<string>(
                 (indexedAttributes ?? Enumerable.Empty<string>())
