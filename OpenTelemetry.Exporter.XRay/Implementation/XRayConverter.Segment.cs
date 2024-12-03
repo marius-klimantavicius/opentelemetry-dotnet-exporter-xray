@@ -45,8 +45,16 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             return name;
         }
 
-        internal static string FixAnnotationKey(string name)
+        internal string FixAnnotationKey(string name)
         {
+            return FixAnnotationKey(name, _allowDotInAnnotationKey);
+        }
+
+        internal static string FixAnnotationKey(string name, bool allowDotInAnnotationKey)
+        {
+            if (allowDotInAnnotationKey)
+                return _invalidAnnotationCharactersAllowDot.Replace(name, "_");
+
             return _invalidAnnotationCharacters.Replace(name, "_");
         }
 
@@ -57,7 +65,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
 
             if (traceId.Length < 32)
                 return false;
-            
+
             var epoch = traceId.Slice(0, EpochHexDigits);
             var epochValue = default(int);
             var epochSpan = new Span<byte>(&epochValue, sizeof(int));

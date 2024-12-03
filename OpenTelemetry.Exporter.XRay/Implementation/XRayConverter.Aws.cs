@@ -112,10 +112,10 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 launchType = value.AsString();
 
             if (resourceAttributes.TryGetAttributeAwsLogGroupNames(out value))
-                logGroups = value as IEnumerable;
+                logGroups = NormalizeToEnumerable(value);
 
             if (resourceAttributes.TryGetAttributeAwsLogGroupArns(out value))
-                logGroupArns = value as IEnumerable;
+                logGroupArns = NormalizeToEnumerable(value);
 
             var spanTags = context.SpanTags;
             if (spanTags.TryGetAttributeAwsOperation(out value))
@@ -321,6 +321,14 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 span = span.Slice(0, lastIndex);
 
             writer.WriteStringValue(span);
+        }
+
+        private static IEnumerable NormalizeToEnumerable(object value)
+        {
+            if (value is string stringValue)
+                return stringValue.Split('&', StringSplitOptions.RemoveEmptyEntries);
+            
+            return value as IEnumerable;
         }
     }
 }

@@ -389,11 +389,31 @@ namespace OpenTelemetry.Exporter.XRay.Tests
         public void Should_fix_annotation_key()
         {
             var validKey = "Key_1";
-            var fixedKey = XRayConverter.FixAnnotationKey(validKey);
+            var fixedKey = XRayConverter.FixAnnotationKey(validKey, false);
             Assert.Equal(validKey, fixedKey);
 
-            var invalidKey = "Key@1";
-            fixedKey = XRayConverter.FixAnnotationKey(invalidKey);
+            var invalidKey = "Key.1";
+            fixedKey = XRayConverter.FixAnnotationKey(invalidKey, false);
+            Assert.Equal("Key_1", fixedKey);
+
+            invalidKey = "Key@1";
+            fixedKey = XRayConverter.FixAnnotationKey(invalidKey, false);
+            Assert.Equal("Key_1", fixedKey);
+        }
+
+        [Fact]
+        public void Should_fix_annotation_key_allow_dot()
+        {
+            var validKey = "Key_1";
+            var fixedKey = XRayConverter.FixAnnotationKey(validKey, true);
+            Assert.Equal(validKey, fixedKey);
+
+            var invalidKey = "Key.1";
+            fixedKey = XRayConverter.FixAnnotationKey(invalidKey, true);
+            Assert.Equal("Key.1", fixedKey);
+
+            invalidKey = "Key@1";
+            fixedKey = XRayConverter.FixAnnotationKey(invalidKey, true);
             Assert.Equal("Key_1", fixedKey);
         }
 
@@ -588,12 +608,42 @@ namespace OpenTelemetry.Exporter.XRay.Tests
                 "otel.resource.map.key",
                 "otel.resource.array.key",
             }, false, false);
-            var segment = ConvertSegment(converter, span, resource);
 
+            var segment = ConvertSegment(converter, span, resource);
             Assert.Equal("string", segment.Annotations["otel_resource_string_key"].ToString());
             Assert.Equal(10, ((JsonElement)segment.Annotations["otel_resource_int_key"]).GetInt32());
             Assert.Equal(5.0, ((JsonElement)segment.Annotations["otel_resource_double_key"]).GetDouble());
             Assert.True(((JsonElement)segment.Annotations["otel_resource_bool_key"]).GetBoolean());
+
+            var metadataArray = ((JsonElement)segment.Metadata["default"]["otel.resource.array.key"]).EnumerateArray().Select(s => s.ToString()).ToList();
+            Assert.Collection(metadataArray,
+                s => Assert.Equal("foo", s),
+                s => Assert.Equal("bar", s));
+        }
+
+        [Fact]
+        public void Should_index_resource_attributes_allow_dot()
+        {
+            var spanName = "/api/locations";
+            var parentSpanID = ActivitySpanId.CreateRandom();
+            var resource = ConstructDefaultResource();
+            var span = ConstructServerSpan(parentSpanID, spanName, ActivityStatusCode.Error, "OK", null);
+
+            var converter = new XRayConverter(null, new[]
+            {
+                "otel.resource.string.key",
+                "otel.resource.int.key",
+                "otel.resource.double.key",
+                "otel.resource.bool.key",
+                "otel.resource.map.key",
+                "otel.resource.array.key",
+            }, false, false, allowDotInAnnotationKey: true);
+
+            var segment = ConvertSegment(converter, span, resource);
+            Assert.Equal("string", segment.Annotations["otel.resource.string.key"].ToString());
+            Assert.Equal(10, ((JsonElement)segment.Annotations["otel.resource.int.key"]).GetInt32());
+            Assert.Equal(5.0, ((JsonElement)segment.Annotations["otel.resource.double.key"]).GetDouble());
+            Assert.True(((JsonElement)segment.Annotations["otel.resource.bool.key"]).GetBoolean());
 
             var metadataArray = ((JsonElement)segment.Metadata["default"]["otel.resource.array.key"]).EnumerateArray().Select(s => s.ToString()).ToList();
             Assert.Collection(metadataArray,

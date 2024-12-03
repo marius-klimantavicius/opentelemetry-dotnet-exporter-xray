@@ -423,7 +423,62 @@ namespace OpenTelemetry.Exporter.XRay.Tests
                 s => Assert.Equal("group1", s.LogGroup),
                 s => Assert.Equal("group2", s.LogGroup));
         }
-        
+
+        [Theory]
+        [InlineData("group1&group2")]
+        [InlineData("group1&group2&")]
+        [InlineData("group1&&group2")]
+        [InlineData("&group1&group2")]
+        public void Should_map_log_groups_with_ampersand(string attributeValue)
+        {
+            var group1 = "group1";
+            var group2 = "group2";
+
+            var attributes = new Dictionary<string, object>
+            {
+                [XRayConventions.AttributeAwsLogGroupNames] = attributeValue,
+            };
+
+            var resource = new Resource(attributes);
+            var activity = new Activity("Test");
+            var segment = ConvertDefault(activity, resource);
+
+            Assert.NotNull(segment.Aws);
+
+            var awsData = segment.Aws;
+            Assert.NotNull(awsData.CloudWatchLogs);
+            Assert.Collection(awsData.CloudWatchLogs,
+                s =>
+                {
+                    Assert.Equal(group1, s.LogGroup);
+                },
+                s =>
+                {
+                    Assert.Equal(group2, s.LogGroup);
+                });
+        }
+
+        [Fact]
+        public void Should_map_log_groups_with_only_ampersand()
+        {
+            var attributes = new Dictionary<string, object>
+            {
+                [XRayConventions.AttributeAwsLogGroupNames] = "&",
+            };
+
+            var resource = new Resource(attributes);
+            var activity = new Activity("Test");
+            var segment = ConvertDefault(activity, resource);
+
+            Assert.NotNull(segment.Aws);
+
+            var awsData = segment.Aws;
+            if (awsData.CloudWatchLogs != null)
+                Assert.Empty(awsData.CloudWatchLogs);
+            else
+                Assert.Null(awsData.CloudWatchLogs);
+        }
+
         [Fact]
         public void Should_map_log_group_arns()
         {
@@ -454,7 +509,38 @@ namespace OpenTelemetry.Exporter.XRay.Tests
                     Assert.Equal("group2", s.LogGroup);
                 });
         }
-     
+
+        [Fact]
+        public void Should_map_log_group_arns_from_string_resource()
+        {
+            var group1 = "arn:aws:logs:us-east-1:123456789123:log-group:group1";
+            var group2 = "arn:aws:logs:us-east-1:123456789123:log-group:group2";
+            var attributes = new Dictionary<string, object>
+            {
+                [XRayConventions.AttributeAwsLogGroupArns] = "arn:aws:logs:us-east-1:123456789123:log-group:group1&arn:aws:logs:us-east-1:123456789123:log-group:group2",
+            };
+
+            var resource = new Resource(attributes);
+            var activity = new Activity("Test");
+            var segment = ConvertDefault(activity, resource);
+
+            Assert.NotNull(segment.Aws);
+
+            var awsData = segment.Aws;
+            Assert.NotNull(awsData.CloudWatchLogs);
+            Assert.Collection(awsData.CloudWatchLogs,
+                s =>
+                {
+                    Assert.Equal(group1, s.Arn);
+                    Assert.Equal("group1", s.LogGroup);
+                },
+                s =>
+                {
+                    Assert.Equal(group2, s.Arn);
+                    Assert.Equal("group2", s.LogGroup);
+                });
+        }
+
         [Fact]
         public void Should_map_log_group_names()
         {
@@ -470,6 +556,5 @@ namespace OpenTelemetry.Exporter.XRay.Tests
                 s => Assert.Equal("group1", s.LogGroup),
                 s => Assert.Equal("group2", s.LogGroup));
         }
-   
     }
 }

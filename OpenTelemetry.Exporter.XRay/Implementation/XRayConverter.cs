@@ -26,6 +26,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
 
         private static readonly Regex _invalidSpanCharacters = new Regex(@"[^ 0-9\p{L}_.:/%&#=+,\\\-@]", RegexOptions.Compiled);
         private static readonly Regex _invalidAnnotationCharacters = new Regex(@"[^0-9a-zA-Z]", RegexOptions.Compiled);
+        private static readonly Regex _invalidAnnotationCharactersAllowDot = new Regex(@"[^0-9a-zA-Z.]", RegexOptions.Compiled);
 
         private readonly Func<string, bool, bool> _shouldIndexAttribute;
         private readonly bool _indexAllAttributes;
@@ -33,16 +34,19 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         private readonly IEnumerable<string> _logGroupNames;
         private readonly bool _validateTraceId;
         private readonly bool _overwriteInvalidTraceId;
+        private readonly bool _allowDotInAnnotationKey;
 
         [ThreadStatic]
         private static XRayConverterCache _cache;
 
-        public XRayConverter(Func<string, bool, bool> shouldIndexAttribute, IEnumerable<string> indexedAttributes, bool indexAllAttributes, bool indexActivityNames, bool validateTraceId = false, bool overwriteInvalidTraceId = false, IEnumerable<string> logGroupNames = null)
-            : this(GenerateShouldIndexAttribute(shouldIndexAttribute, indexedAttributes, indexAllAttributes), indexAllAttributes, indexActivityNames, validateTraceId, overwriteInvalidTraceId, logGroupNames)
+        public XRayConverter(Func<string, bool, bool> shouldIndexAttribute, IEnumerable<string> indexedAttributes, bool indexAllAttributes, bool indexActivityNames, bool validateTraceId = false, 
+            bool overwriteInvalidTraceId = false, IEnumerable<string> logGroupNames = null, bool allowDotInAnnotationKey = false)
+            : this(GenerateShouldIndexAttribute(shouldIndexAttribute, indexedAttributes, indexAllAttributes), indexAllAttributes, indexActivityNames, validateTraceId, overwriteInvalidTraceId, logGroupNames, allowDotInAnnotationKey)
         {
         }
 
-        public XRayConverter(Func<string, bool, bool> shouldIndexAttribute, bool indexAllAttributes, bool indexActivityNames, bool validateTraceId = false, bool overwriteInvalidTraceId = false, IEnumerable<string> logGroupNames = null)
+        public XRayConverter(Func<string, bool, bool> shouldIndexAttribute, bool indexAllAttributes, bool indexActivityNames, bool validateTraceId = false, 
+            bool overwriteInvalidTraceId = false, IEnumerable<string> logGroupNames = null, bool allowDotInAnnotationKey = false)
         {
             _indexAllAttributes = indexAllAttributes;
 
@@ -51,10 +55,12 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
 
             _indexActivityNames = indexActivityNames;
             _logGroupNames = logGroupNames;
+            _allowDotInAnnotationKey = allowDotInAnnotationKey;
             _validateTraceId = validateTraceId;
             _overwriteInvalidTraceId = overwriteInvalidTraceId;
         }
 
+        // NOTE: x-ray specific attributes aws.local.service, aws.remote.service, aws.local.operation, aws.remote.operation, remoteTarget, aws.span.kind, K8s.RemoteNamespace are not ported
         public string Convert(Resource resource, Activity span)
         {
             var segmentType = default(string);
@@ -407,25 +413,30 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             }
         }
 
-        private static unsafe void WriteAnnotationResourceKey(Utf8JsonWriter writer, string key)
+        private unsafe void WriteAnnotationResourceKey(Utf8JsonWriter writer, string key)
         {
             if (key.Length > 24)
             {
-                var finalKey = FixAnnotationKey(AnnotationResourceKeyPrefix + key);
+                var finalKey = FixAnnotationKey(ResourceKeyPrefix + key);
                 writer.WritePropertyName(finalKey);
             }
             else
             {
-                Span<char> finalKey = stackalloc char[AnnotationResourceKeyPrefix.Length + key.Length];
-                AnnotationResourceKeyPrefix.AsSpan().CopyTo(finalKey);
-                key.AsSpan().CopyTo(finalKey.Slice(AnnotationResourceKeyPrefix.Length));
+                var keyPrefix = AnnotationResourceKeyPrefix;
+                if (_allowDotInAnnotationKey)
+                    keyPrefix = ResourceKeyPrefix;
+                
+                Span<char> finalKey = stackalloc char[keyPrefix.Length + key.Length];
+                keyPrefix.AsSpan().CopyTo(finalKey);
+                key.AsSpan().CopyTo(finalKey.Slice(keyPrefix.Length));
 
                 for (var i = 0; i < finalKey.Length; i++)
                 {
                     var c = finalKey[i];
                     var isValidAnnotationChar = c >= '0' && c <= '9'
                         || c >= 'a' && c <= 'z'
-                        || c >= 'A' && c <= 'Z';
+                        || c >= 'A' && c <= 'Z' 
+                        || _allowDotInAnnotationKey && c == '.';
                     if (!isValidAnnotationChar)
                         finalKey[i] = '_';
                 }

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFrameworks>netstandard2.1;netcoreapp3.1;net5;net6;net7</TargetFrameworks>
+        <TargetFrameworks>netstandard2.1;netcoreapp3.1;net5;net6;net7;net8;net9</TargetFrameworks>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <LangVersion>8</LangVersion>
         <AssemblyName>Marius.OpenTelemetry.Exporter.XRay</AssemblyName>
@@ -29,7 +29,7 @@
     </ItemGroup>
 
     <ItemGroup Condition="$(TargetFramework) == 'netstandard2.1'">
-        <PackageReference Include="System.Text.Json" Version="6.0.6" />
+        <PackageReference Include="System.Text.Json" Version="6.0.11" />
     </ItemGroup>
 
     <ItemGroup>

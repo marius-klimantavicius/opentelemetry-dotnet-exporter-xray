@@ -92,7 +92,19 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         public const string AttributeAwsTableName2 = "aws.table.name";
 
         public const string AttributeAwsDynamoDbTableNames = "aws.dynamodb.table_names";
-            
+
         public const string ExceptionEventName = "exception";
+        
+        public const string AttributeHttpRequestMethod = "http.request.method";
+        public const string AttributeHttpRequestMethodOriginal = "http.request.method_original";
+        public const string AttributeHttpResponseStatusCode = "http.response.status_code";
+        public const string AttributeServerAddress = "server.address";
+        public const string AttributeServerPort = "server.port";
+        public const string AttributeNetworkPeerAddress = "network.peer.address";
+        public const string AttributeClientAddress = "client.address";
+        public const string AttributeUrlScheme = "url.scheme";
+        public const string AttributeUrlFull = "url.full";
+        public const string AttributeUrlPath = "url.path";
+        public const string AttributeUserAgentOriginal = "user_agent.original";
     }
 }

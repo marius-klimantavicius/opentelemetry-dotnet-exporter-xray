@@ -93,6 +93,13 @@ namespace OpenTelemetry.Exporter.XRay
         public bool OverwriteInvalidTraceId { get; set; } = false;
 
         /// <summary>
+        /// Gets or set a value indicating whether to allow dot in annotation key.
+        /// Default is false.
+        /// Corresponds to "exporter.xray.allowDot" feature flag in awsxrayconverter.
+        /// </summary>
+        public bool AllowDotInAnnotationKey { get; set; } = false;
+        
+        /// <summary>
         /// Gets or sets the type of Export Processor to be used.
         /// </summary>
         public ExportProcessorType ExportProcessorType { get; set; } = ExportProcessorType.Batch;

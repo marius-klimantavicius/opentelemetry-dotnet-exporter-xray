@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using System.Net;
 using System.Text.Json;
 
 namespace OpenTelemetry.Exporter.XRay.Implementation
@@ -18,45 +19,50 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
 
             var hasHttp = false;
             var hasHttpRequestUrlAttributes = false;
+            var hasNetPeerAddress = false;
             var urlParts = new XRayHttpUrlParts();
 
             var spanTags = context.SpanTags;
-            if (spanTags.TryGetAttributeHttpMethod(out var value))
+            if (spanTags.TryGetAttributeHttpMethod(out var value) || spanTags.TryGetAttributeHttpRequestMethod(out value))
             {
                 requestMethod = value.AsString();
                 hasHttp = true;
+                spanTags.TryGetAttributeHttpRequestMethod(out value); // consume
             }
 
             if (spanTags.TryGetAttributeHttpClientIp(out value))
             {
                 requestClientIp = value.AsString();
-                requestXForwardedFor = true;
                 hasHttp = true;
             }
 
-            if (spanTags.TryGetAttributeHttpUserAgent(out value))
+            if (spanTags.TryGetAttributeHttpUserAgent(out value) || spanTags.TryGetAttributeUserAgentOriginal(out value))
             {
                 requestUserAgent = value.AsString();
                 hasHttp = true;
+                spanTags.TryGetAttributeUserAgentOriginal(out value); // consume
             }
 
-            if (spanTags.TryGetAttributeHttpStatusCode(out value))
+            if (spanTags.TryGetAttributeHttpStatusCode(out value) || spanTags.TryGetAttributeHttpResponseStatusCode(out value))
             {
                 responseStatus = value.AsInt();
                 hasHttp = true;
+                spanTags.TryGetAttributeHttpResponseStatusCode(out value); // consume
             }
 
-            if (spanTags.TryGetAttributeHttpUrl(out value))
+            if (spanTags.TryGetAttributeHttpUrl(out value) || spanTags.TryGetAttributeUrlFull(out value))
             {
                 urlParts.AttributeHttpUrl = value.AsString();
                 hasHttp = true;
                 hasHttpRequestUrlAttributes = true;
+                spanTags.TryGetAttributeUrlFull(out value); // consume
             }
 
-            if (spanTags.TryGetAttributeHttpScheme(out value))
+            if (spanTags.TryGetAttributeHttpScheme(out value) || spanTags.TryGetAttributeUrlScheme(out value))
             {
                 urlParts.AttributeHttpScheme = value.AsString();
                 hasHttp = true;
+                spanTags.TryGetAttributeUrlScheme(out value); // consume
             }
 
             if (spanTags.TryGetAttributeHttpHost(out value))
@@ -118,6 +124,44 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 urlParts.AttributeNetPeerIp = value.AsString();
                 hasHttpRequestUrlAttributes = true;
             }
+
+            if (spanTags.TryGetAttributeNetworkPeerAddress(out value))
+            {
+                if (IPAddress.TryParse(value.AsString(), out _))
+                {
+                    requestClientIp ??= value.AsString();
+                    hasHttpRequestUrlAttributes = true;
+                    hasNetPeerAddress = true;
+                }
+            }
+
+            if (spanTags.TryGetAttributeClientAddress(out value))
+            {
+                if (IPAddress.TryParse(value.AsString(), out _))
+                    requestClientIp = value.AsString();
+            }
+
+            if (spanTags.TryGetAttributeUrlPath(out value))
+            {
+                urlParts.AttributeUrlPath = value.AsString();
+                hasHttp = true;
+            }
+
+            if (spanTags.TryGetAttributeServerAddress(out value))
+            {
+                urlParts.AttributeServerAddress = value.AsString();
+                hasHttpRequestUrlAttributes = true;
+            }
+
+            if (spanTags.TryGetAttributeServerPort(out value))
+            {
+                urlParts.AttributeServerPort = value.AsString();
+                if (string.IsNullOrEmpty(urlParts.AttributeServerPort))
+                    urlParts.AttributeServerPort = value.AsInt().ToString(CultureInfo.InvariantCulture);
+            }
+
+            if (!hasNetPeerAddress && requestClientIp != null)
+                requestXForwardedFor = true;
 
             if (!hasHttp)
             {
@@ -282,11 +326,17 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 if (!urlParts.AttributeHttpServerName.TryGetValue(out host))
                 {
                     if (!urlParts.AttributeNetHostName.TryGetValue(out host))
-                        urlParts.AttributeHostName.TryGetValue(out host);
+                    {
+                        if (!urlParts.AttributeHostName.TryGetValue(out host))
+                            urlParts.AttributeServerAddress.TryGetValue(out host);
+                    }
                 }
 
                 if (!urlParts.AttributeNetHostPort.TryGetValue(out port))
-                    port = "";
+                {
+                    if (!urlParts.AttributeServerPort.TryGetValue(out port))
+                        port = "";
+                }
             }
 
             var sb = new ValueStringBuilder(stackalloc char[128]);
@@ -300,9 +350,16 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             }
 
             if (urlParts.AttributeHttpTarget.TryGetValue(out var target))
+            {
                 sb.Append(target);
+            }
             else
-                sb.Append('/');
+            {
+                if (urlParts.AttributeUrlPath.TryGetValue(out var path))
+                    sb.Append(path);
+                else
+                    sb.Append('/');
+            }
 
             writer.WriteString(XRayField.Url, sb.AsSpan());
             sb.Dispose();

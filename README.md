@@ -139,3 +139,9 @@ If `true` then will reject/ignore activities that have either invalid aws trace 
 #### `LogGroupNames` (optional, default: `null`)
 
 List of log group names for cloud watch if not provided by resource attributes (`"aws.log.group.names"` and `"aws.log.group.arns"`).
+
+#### `AllowDotInAnnotationKey` (optional, default: `false`)
+
+If `true` then dots in attribute keys are allowed and will not be replaced with underscores.
+Corresponds to BETA feature flag "exporter.xray.allowDot".
+Original doc: `X-Ray Exporter will no longer convert . to _ in annotation keys when this feature gate is enabled.`
