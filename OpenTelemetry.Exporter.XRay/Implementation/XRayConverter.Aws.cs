@@ -25,6 +25,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             var requestId = default(string);
             var queueUrl = default(string);
             var tableName = default(string);
+            var tableNames = default(IList);
             var sdk = default(string);
             var sdkName = default(string);
             var sdkLanguage = default(string);
@@ -90,6 +91,10 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             if (resourceAttributes.TryGetAttributeTelemetryAutoVersion(out value))
                 autoVersion = value.AsString();
 
+            // Either version attribute identifies automatic instrumentation.
+            if (resourceAttributes.TryGetAttributeTelemetryDistroVersion(out value) && !string.IsNullOrEmpty(value.AsString()))
+                autoVersion = value.AsString();
+
             if (resourceAttributes.TryGetAttributeContainerId(out value))
                 containerId = value.AsString();
 
@@ -137,9 +142,11 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 spanTags.TryGetAttributeAwsRequestId2(out value); // consume
             }
 
-            if (spanTags.TryGetAttributeAwsQueueUrl(out value) || spanTags.TryGetAttributeAwsQueueUrl2(out value))
+            // Keep alias precedence deterministic; messaging.url is preferred below.
+            if (spanTags.TryGetAttributeAwsSqsQueueUrl(out value) || spanTags.TryGetAttributeAwsQueueUrl(out value) || spanTags.TryGetAttributeAwsQueueUrl2(out value))
             {
                 queueUrl = value.AsString();
+                spanTags.TryGetAttributeAwsQueueUrl(out value); // consume
                 spanTags.TryGetAttributeAwsQueueUrl2(out value); // consume
             }
 
@@ -154,18 +161,36 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 return;
 
             // Favor Semantic Conventions for specific SQS and DynamoDB attributes.
-            if (spanTags.TryGetAttributeMessagingUrl(out value))
+            if (!_dontEmitV0HttpNetworkConventions && spanTags.TryGetAttributeMessagingUrl(out value))
                 queueUrl = value.AsString();
+
             if (spanTags.TryGetAttributeAwsDynamoDbTableNames(out value))
-                tableName = value.AsString();
+            {
+                if (value is string name)
+                {
+                    tableName = name;
+                }
+                else if (value is IList names)
+                {
+                    if (names.Count == 1)
+                    {
+                        tableName = names[0].AsString();
+                    }
+                    else if (names.Count > 1)
+                    {
+                        tableName = null;
+                        tableNames = names;
+                    }
+                }
+            }
 
             spanTags.ResetConsume();
-            
+
             var writer = context.Writer;
             writer.WritePropertyName(XRayField.Aws);
             writer.WriteStartObject();
 
-            if (account != null)
+            if (!context.IsServiceSegment && account != null)
                 writer.WriteString(XRayField.AccountId, account);
 
             if (service == XRayAwsConventions.AttributeCloudPlatformAwsEc2 || !string.IsNullOrEmpty(hostId))
@@ -253,6 +278,12 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             writer.WriteBoolean(XRayField.AutoInstrumentation, !string.IsNullOrEmpty(autoVersion));
             writer.WriteEndObject();
 
+            if (context.IsServiceSegment)
+            {
+                writer.WriteEndObject();
+                return;
+            }
+
             if (operation != null)
                 writer.WriteString(XRayField.Operation, operation);
             if (remoteRegion != null)
@@ -263,6 +294,15 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 writer.WriteString(XRayField.QueueUrl, queueUrl);
             if (tableName != null)
                 writer.WriteString(XRayField.TableName, tableName);
+            
+            if (tableNames != null)
+            {
+                writer.WritePropertyName(XRayField.TableNames);
+                writer.WriteStartArray();
+                foreach (var name in tableNames)
+                    writer.WriteStringValue(name.AsString());
+                writer.WriteEndArray();
+            }
 
             writer.WriteEndObject();
         }
@@ -327,7 +367,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         {
             if (value is string stringValue)
                 return stringValue.Split('&', StringSplitOptions.RemoveEmptyEntries);
-            
+
             return value as IEnumerable;
         }
     }

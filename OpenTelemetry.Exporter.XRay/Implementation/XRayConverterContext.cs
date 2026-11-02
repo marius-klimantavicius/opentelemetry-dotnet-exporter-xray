@@ -13,14 +13,16 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         public readonly XRayTagDictionary SpanTags;
 
         public readonly Utf8JsonWriter Writer;
+        public readonly bool IsServiceSegment;
 
-        public XRayConverterContext(Resource resource, XRayTagDictionary resourceAttributes, Activity span, XRayTagDictionary spanTags, Utf8JsonWriter writer)
+        public XRayConverterContext(Resource resource, XRayTagDictionary resourceAttributes, Activity span, XRayTagDictionary spanTags, Utf8JsonWriter writer, bool isServiceSegment = false)
         {
             Writer = writer;
             Resource = resource;
             ResourceAttributes = resourceAttributes;
             Span = span;
             SpanTags = spanTags;
+            IsServiceSegment = isServiceSegment;
         }
     }
 }

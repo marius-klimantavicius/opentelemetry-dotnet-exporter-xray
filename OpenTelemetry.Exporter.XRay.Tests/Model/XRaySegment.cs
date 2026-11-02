@@ -79,5 +79,8 @@ namespace OpenTelemetry.Exporter.XRay.Tests.Model
 
         [JsonPropertyName("subsegments")]
         public List<XRaySegment> Subsegments { get; set; }
+
+        [JsonPropertyName("links")]
+        public List<XRaySpanLink> Links { get; set; }
     }
 }

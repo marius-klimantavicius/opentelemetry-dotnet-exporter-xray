@@ -15,9 +15,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         public State Initialize(IEnumerable<KeyValuePair<string, object>> values, bool ignoreExtra = false)
         {
             foreach (var item in values)
-            {
                 AddOrReplace(item, ignoreExtra);
-            }
 
             return new State(this);
         }
@@ -69,7 +67,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
 
         public partial struct Enumerator : IEnumerator<KeyValuePair<string, object>>
         {
-            private XRayTagDictionary _dictionary;
+            private readonly XRayTagDictionary _dictionary;
             private KeyValuePair<string, object> _current;
             private long _currentBits;
             private int _currentIndex;

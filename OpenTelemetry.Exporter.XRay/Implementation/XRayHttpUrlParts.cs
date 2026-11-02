@@ -14,7 +14,9 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         public XRayHttpUrlPartValue AttributeNetPeerPort;
         public XRayHttpUrlPartValue AttributeNetPeerIp;
         public XRayHttpUrlPartValue AttributeUrlPath;
+        public XRayHttpUrlPartValue AttributeUrlQuery;
         public XRayHttpUrlPartValue AttributeServerAddress;
         public XRayHttpUrlPartValue AttributeServerPort;
+        public XRayHttpUrlPartValue AttributeNetworkPeerPort;
     }
 }

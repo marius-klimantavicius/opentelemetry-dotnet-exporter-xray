@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using Amazon.XRay;
 using Amazon.XRay.Model;
 
@@ -22,8 +23,6 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
 
         public XRayExporter(XRayExporterOptions options)
         {
-            _client = options.AmazonXRayClientFactory();
-
             _converter = new XRayConverter(
                 options.ShouldIndexAttribute,
                 options.IndexedAttributes,
@@ -32,39 +31,67 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 options.ValidateTraceId,
                 options.OverwriteInvalidTraceId,
                 options.LogGroupNames,
-                options.AllowDotInAnnotationKey);
+                options.AllowDotInAnnotationKey,
+                options.EmitV1DbConventions,
+                options.DontEmitV0DbConventions,
+                options.EmitV1HttpNetworkConventions,
+                options.DontEmitV0HttpNetworkConventions);
+
+            _client = options.AmazonXRayClientFactory();
         }
 
         public override ExportResult Export(in Batch<Activity> batch)
         {
             using var scope = SuppressInstrumentationScope.Begin();
 
+            var documentList = _listCache ?? new List<string>(MaxDocumentCount);
+            var request = _requestCache ?? new PutTraceSegmentsRequest();
+            
+            // Take ownership to avoid sharing in case of recursive calls
+            _listCache = null;
+            _requestCache = null;
+
             try
             {
                 var resource = ParentProvider.GetResource();
-                var documentList = _listCache ?? new List<string>(MaxDocumentCount);
-                var request = _requestCache ?? new PutTraceSegmentsRequest();
 
                 var totalLength = 0;
                 foreach (var item in batch)
                 {
-                    var document = _converter.Convert(resource, item);
-                    if (document == null)
+                    var (first, second) = _converter.ConvertDocuments(resource, item);
+                    if (first == null)
                         continue;
 
-                    if (totalLength + document.Length > MaxDocumentSize || documentList.Count >= MaxDocumentCount)
+                    if (totalLength + first.Length > MaxDocumentSize || documentList.Count >= MaxDocumentCount)
                     {
                         request.TraceSegmentDocuments = documentList;
                         var response = _client.PutTraceSegmentsAsync(request).GetAwaiter().GetResult();
                         if (response?.UnprocessedTraceSegments?.Count > 0)
                             XRayExporterEventSource.Log.UnprocessedTraceSegments(response.UnprocessedTraceSegments);
-
+                    
                         totalLength = 0;
                         documentList.Clear();
                     }
+                    
+                    totalLength += first.Length;
+                    documentList.Add(first);
+                    
+                    if (second == null)
+                        continue;
 
-                    totalLength += document.Length;
-                    documentList.Add(document);
+                    if (totalLength + second.Length > MaxDocumentSize || documentList.Count >= MaxDocumentCount)
+                    {
+                        request.TraceSegmentDocuments = documentList;
+                        var response = _client.PutTraceSegmentsAsync(request).GetAwaiter().GetResult();
+                        if (response?.UnprocessedTraceSegments?.Count > 0)
+                            XRayExporterEventSource.Log.UnprocessedTraceSegments(response.UnprocessedTraceSegments);
+                    
+                        totalLength = 0;
+                        documentList.Clear();
+                    }
+                    
+                    totalLength += second.Length;
+                    documentList.Add(second);
                 }
 
                 if (documentList.Count > 0)
@@ -77,17 +104,20 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                     documentList.Clear();
                 }
 
-                request.TraceSegmentDocuments = null;
-
-                _listCache = documentList;
-                _requestCache = request;
-
                 return ExportResult.Success;
             }
             catch (Exception ex)
             {
                 XRayExporterEventSource.Log.FailedExport(ex);
                 return ExportResult.Failure;
+            }
+            finally
+            {
+                documentList.Clear();
+                request.TraceSegmentDocuments = null;
+
+                _listCache = documentList;
+                _requestCache = request;
             }
         }
     }

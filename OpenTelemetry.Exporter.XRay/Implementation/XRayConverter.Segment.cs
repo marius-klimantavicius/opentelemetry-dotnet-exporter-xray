@@ -67,7 +67,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 return false;
 
             var epoch = traceId.Slice(0, EpochHexDigits);
-            var epochValue = default(int);
+            var epochValue = 0;
             var epochSpan = new Span<byte>(&epochValue, sizeof(int));
             if (!TryDecodeHex(epoch, epochSpan))
                 return false;
@@ -76,7 +76,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 epochValue = BinaryPrimitives.ReverseEndianness(epochValue);
 
             var epochNow = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            var delta = epochNow - epochValue;
+            var delta = epochNow - (uint)epochValue;
             return delta <= MaxAge && delta >= -MaxSkew;
         }
 

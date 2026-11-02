@@ -6,7 +6,7 @@ using Xunit;
 
 namespace OpenTelemetry.Exporter.XRay.Tests
 {
-    public class XRayConverterHttpTests : XRayTest
+    public partial class XRayConverterHttpTests : XRayTest
     {
         [Fact]
         public void Should_use_provided_url_client()
@@ -185,7 +185,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             Assert.NotNull(segment.Http.Request);
             Assert.Equal("https://2001:db8:85a3::8a2e:370:7334/users/junit", segment.Http.Request.Url);
         }
-        
+
         [Fact]
         public void Should_use_provided_url_server()
         {
@@ -205,7 +205,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             Assert.NotNull(segment.Http.Request);
             Assert.Equal("https://api.example.com/users/junit", segment.Http.Request.Url);
         }
-        
+
         [Fact]
         public void Should_use_provided_url_server_stable()
         {

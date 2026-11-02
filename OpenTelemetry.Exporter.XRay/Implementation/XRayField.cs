@@ -78,6 +78,9 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         public static readonly JsonEncodedText RequestId = JsonEncodedText.Encode("request_id");
         public static readonly JsonEncodedText QueueUrl = JsonEncodedText.Encode("queue_url");
         public static readonly JsonEncodedText TableName = JsonEncodedText.Encode("table_name");
+        public static readonly JsonEncodedText TableNames = JsonEncodedText.Encode("table_names");
+        public static readonly JsonEncodedText Links = JsonEncodedText.Encode("links");
+        public static readonly JsonEncodedText Attributes = JsonEncodedText.Encode("attributes");
         public static readonly JsonEncodedText Retries = JsonEncodedText.Encode("retries");
 
         // EC2

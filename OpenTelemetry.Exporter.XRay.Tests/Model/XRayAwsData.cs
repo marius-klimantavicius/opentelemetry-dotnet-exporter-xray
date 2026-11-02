@@ -41,6 +41,9 @@ namespace OpenTelemetry.Exporter.XRay.Tests.Model
         [JsonPropertyName("table_name")]
         public string TableName { get; set; }
 
+        [JsonPropertyName("table_names")]
+        public List<string> TableNames { get; set; }
+
         [JsonPropertyName("retries")]
         public string Retries { get; set; }
     }

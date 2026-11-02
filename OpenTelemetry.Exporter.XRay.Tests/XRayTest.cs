@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Text.Json;
 using OpenTelemetry.Exporter.XRay.Implementation;
 using OpenTelemetry.Exporter.XRay.Tests.Model;
@@ -26,7 +25,7 @@ namespace OpenTelemetry.Exporter.XRay.Tests
 
         public const string AttributeMessagingMessageID = "messaging.message_id";
         public const string AttributeMessagingMessagePayloadCompressedSizeBytes = "messaging.message_payload_compressed_size_bytes";
-        
+
         private ActivitySource _activitySource;
         private ActivityListener _activityListener;
 
@@ -81,9 +80,9 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             resource ??= Resource.Empty;
 
             var converter = CreateDefaultConverter();
-            
+
             segmentDocument = converter.Convert(resource, span);
-            
+
             var segment = JsonSerializer.Deserialize<XRaySegment>(segmentDocument);
             Assert.NotNull(segment);
             Assert.Matches("^1-[0-9a-f]{8}-[0-9a-f]{24}", segment.TraceId);
@@ -94,6 +93,33 @@ namespace OpenTelemetry.Exporter.XRay.Tests
         internal static XRayConverter CreateDefaultConverter()
         {
             return new XRayConverter(null, null, true, false);
+        }
+
+        internal Activity ConstructSpan(ActivityKind kind,
+            IEnumerable<KeyValuePair<string, object>> attributes = null,
+            IEnumerable<ActivityLink> links = null,
+            bool hasParent = true,
+            string name = "destination operation")
+        {
+            var parent = new ActivityContext(XRayTraceId.Generate(), hasParent ? ActivitySpanId.CreateRandom() : default, ActivityTraceFlags.Recorded);
+            var span = ActivitySource.CreateActivity(name, kind, parent, attributes, links);
+            Assert.NotNull(span);
+            var end = DateTime.UtcNow;
+            span.SetStartTime(end.AddMilliseconds(-215));
+            span.SetEndTime(end);
+            return span;
+        }
+
+        internal static XRaySegment[] ConvertDocuments(XRayConverter converter, Activity span, Resource resource = null)
+        {
+            var (first, second) = converter.ConvertDocuments(resource ?? Resource.Empty, span);
+            if (first == null)
+                return Array.Empty<XRaySegment>();
+
+            var segment = JsonSerializer.Deserialize<XRaySegment>(first);
+            return second == null
+                ? new[] { segment }
+                : new[] { segment, JsonSerializer.Deserialize<XRaySegment>(second) };
         }
 
         internal static Resource ConstructDefaultResource()

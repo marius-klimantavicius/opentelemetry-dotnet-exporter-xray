@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using OpenTelemetry.Exporter.XRay.Implementation;
 using Xunit;

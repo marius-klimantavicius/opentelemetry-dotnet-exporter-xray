@@ -144,8 +144,10 @@ Caused by: java.lang.IllegalArgumentException: bad argument";
             Assert.Null(segment.Cause);
         }
 
-        [Fact]
-        public void Should_map_cause_with_status_message()
+        [Theory]
+        [InlineData(XRayConventions.AttributeHttpStatusCode)]
+        [InlineData(XRayConventions.AttributeHttpResponseStatusCode)]
+        public void Should_map_cause_with_status_message(string statusKey)
         {
             var errorMsg = "this is a test";
 
@@ -153,7 +155,7 @@ Caused by: java.lang.IllegalArgumentException: bad argument";
             {
                 [XRayConventions.AttributeHttpMethod] = "POST",
                 [XRayConventions.AttributeHttpUrl] = "https://api.example.com/widgets",
-                [XRayConventions.AttributeHttpStatusCode] = 500,
+                [statusKey] = 500,
             };
 
             var span = ConstructExceptionServerSpan(attributes, ActivityStatusCode.Error, errorMsg);
@@ -166,8 +168,10 @@ Caused by: java.lang.IllegalArgumentException: bad argument";
             Assert.Contains(segment.Cause.Exceptions, exception => exception.Message == errorMsg);
         }
 
-        [Fact]
-        public void Should_map_cause_with_http_status_message()
+        [Theory]
+        [InlineData(XRayConventions.AttributeHttpStatusCode)]
+        [InlineData(XRayConventions.AttributeHttpResponseStatusCode)]
+        public void Should_map_cause_with_http_status_message(string statusKey)
         {
             var errorMsg = "this is a test";
 
@@ -175,7 +179,7 @@ Caused by: java.lang.IllegalArgumentException: bad argument";
             {
                 [XRayConventions.AttributeHttpMethod] = "POST",
                 [XRayConventions.AttributeHttpUrl] = "https://api.example.com/widgets",
-                [XRayConventions.AttributeHttpStatusCode] = 500,
+                [statusKey] = 500,
                 [XRayConventions.AttributeHttpStatusText] = errorMsg,
             };
 
@@ -189,8 +193,10 @@ Caused by: java.lang.IllegalArgumentException: bad argument";
             Assert.Contains(segment.Cause.Exceptions, exception => exception.Message == errorMsg);
         }
 
-        [Fact]
-        public void Should_map_null_cause_with_zero_status_message()
+        [Theory]
+        [InlineData(XRayConventions.AttributeHttpStatusCode)]
+        [InlineData(XRayConventions.AttributeHttpResponseStatusCode)]
+        public void Should_map_null_cause_with_zero_status_message(string statusKey)
         {
             var errorMsg = "this is a test";
 
@@ -198,25 +204,25 @@ Caused by: java.lang.IllegalArgumentException: bad argument";
             {
                 [XRayConventions.AttributeHttpMethod] = "POST",
                 [XRayConventions.AttributeHttpUrl] = "https://api.example.com/widgets",
-                [XRayConventions.AttributeHttpStatusCode] = 500,
+                [statusKey] = 500,
                 [XRayConventions.AttributeHttpStatusText] = errorMsg,
             };
 
-            // Status is used to determine whether an error or not.
-            // This span illustrates incorrect instrumentation,
-            // marking a success status with an error http status code, and status wins.
-            // We do not expect to see such spans in practice.
+            // HTTP status determines the fault flag, while span status still controls
+            // whether the status text becomes a synthetic exception.
             var span = ConstructExceptionServerSpan(attributes, ActivityStatusCode.Unset);
             var segment = ConvertDefault(span);
 
-            Assert.False(segment.IsFault);
+            Assert.True(segment.IsFault);
             Assert.False(segment.IsError);
             Assert.False(segment.IsThrottle);
             Assert.Null(segment.Cause);
         }
 
-        [Fact]
-        public void Should_map_cause_with_client_error_message()
+        [Theory]
+        [InlineData(XRayConventions.AttributeHttpStatusCode)]
+        [InlineData(XRayConventions.AttributeHttpResponseStatusCode)]
+        public void Should_map_cause_with_client_error_message(string statusKey)
         {
             var errorMsg = "this is a test";
 
@@ -224,7 +230,7 @@ Caused by: java.lang.IllegalArgumentException: bad argument";
             {
                 [XRayConventions.AttributeHttpMethod] = "POST",
                 [XRayConventions.AttributeHttpUrl] = "https://api.example.com/widgets",
-                [XRayConventions.AttributeHttpStatusCode] = 499,
+                [statusKey] = 499,
                 [XRayConventions.AttributeHttpStatusText] = errorMsg,
             };
 
@@ -237,8 +243,10 @@ Caused by: java.lang.IllegalArgumentException: bad argument";
             Assert.NotNull(segment.Cause);
         }
 
-        [Fact]
-        public void Should_map_cause_with_throttled_error()
+        [Theory]
+        [InlineData(XRayConventions.AttributeHttpStatusCode)]
+        [InlineData(XRayConventions.AttributeHttpResponseStatusCode)]
+        public void Should_map_cause_with_throttled_error(string statusKey)
         {
             var errorMsg = "this is a test";
 
@@ -246,7 +254,7 @@ Caused by: java.lang.IllegalArgumentException: bad argument";
             {
                 [XRayConventions.AttributeHttpMethod] = "POST",
                 [XRayConventions.AttributeHttpUrl] = "https://api.example.com/widgets",
-                [XRayConventions.AttributeHttpStatusCode] = 429,
+                [statusKey] = 429,
                 [XRayConventions.AttributeHttpStatusText] = errorMsg,
             };
 
@@ -1401,7 +1409,7 @@ Caused by: Exception: Thrown from class A
                         });
                 });
         }
-        
+
         [Fact]
         public void Should_parse_exception_with_go_without_stacktrace()
         {
@@ -1420,7 +1428,7 @@ Caused by: Exception: Thrown from class A
                     Assert.Null(exception.Stack);
                 });
         }
-        
+
         [Fact]
         public void Should_parse_exception_with_go_with_stacktrace()
         {
@@ -1477,7 +1485,7 @@ created by testing.(*T).Run
                         });
                 });
         }
-        
+
         [Fact]
         public void Should_parse_multiple_exception_with_go_stacktrace()
         {
@@ -1518,7 +1526,7 @@ created by testing.(*T).Run
                     Assert.Equal(message, exception.Message);
 
                     Assert.Equal(11, exception.Stack.Count);
-                    
+
                     Assert.StartsWith("go.opentelemetry.io/otel/sdk/trace.recordStackTrace", exception.Stack[0].Label);
                     Assert.Equal("Documents/otel-go-core/opentelemetry-go/sdk/trace/span.go", exception.Stack[0].Path);
                     Assert.Equal(318, exception.Stack[0].Line);

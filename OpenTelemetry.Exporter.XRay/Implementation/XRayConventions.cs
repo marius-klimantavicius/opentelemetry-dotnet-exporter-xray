@@ -2,10 +2,31 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
 {
     internal static class XRayConventions
     {
+        public const string AttributeUrlQuery = "url.query";
+        public const string AttributeNetworkPeerPort = "network.peer.port";
+        public const string AttributeDbNamespace = "db.namespace";
+        public const string AttributeDbSystemName = "db.system.name";
+        public const string AttributeDbQueryText = "db.query.text";
+        public const string AttributeUserName = "user.name";
+        public const string AttributeMessagingMessageBodySize = "messaging.message.body.size";
+        public const string AttributeAwsSqsQueueUrl = "aws.sqs.queue.url";
+        public const string AttributeTelemetryDistroVersion = "telemetry.distro.version";
+        public const string AttributeContainerImageTags = "container.image.tags";
+        public const string AttributeAwsHttpErrorMessage = "aws.http.error_message";
+        public const string HttpRequestFailureEventName = "HTTP request failure";
+        public const string AttributeAwsXRayAnnotations = "aws.xray.annotations";
+        public const string AttributeAwsXRayInProgress = "aws.xray.inprogress";
+        public const string AttributeAwsLocalService = "aws.local.service";
+        public const string AttributeAwsRemoteService = "aws.remote.service";
+        public const string AttributeAwsLocalOperation = "aws.local.operation";
+        public const string AttributeAwsRemoteOperation = "aws.remote.operation";
+        public const string AttributeRemoteTarget = "remoteTarget";
+        public const string AttributeAwsSpanKind = "aws.span.kind";
+        public const string AttributeK8SRemoteNamespace = "K8s.RemoteNamespace";
         public const string StatusCodeKey = "otel.status_code";
-        
+
         public const string AttributeEndUserId = "enduser.id";
-        
+
         public const string AttributeNetPeerIp = "net.peer.ip";
         public const string AttributeNetPeerPort = "net.peer.port";
         public const string AttributeNetPeerName = "net.peer.name";
@@ -59,13 +80,13 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         public const string AttributeCloudAccountId = "cloud.account.id";
         public const string AttributeCloudAvailabilityZone = "cloud.availability_zone";
         public const string AttributeCloudPlatform = "cloud.platform";
-        
+
         public const string AttributeAwsEcsContainerArn = "aws.ecs.container.arn";
         public const string AttributeAwsEcsClusterArn = "aws.ecs.cluster.arn";
         public const string AttributeAwsEcsLaunchType = "aws.ecs.launchtype";
         public const string AttributeAwsEcsTaskArn = "aws.ecs.task.arn";
         public const string AttributeAwsEcsTaskFamily = "aws.ecs.task.family";
-        
+
         public const string AttributeK8SClusterName = "k8s.cluster.name";
         public const string AttributeK8SPodName = "k8s.pod.name";
 
@@ -94,7 +115,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
         public const string AttributeAwsDynamoDbTableNames = "aws.dynamodb.table_names";
 
         public const string ExceptionEventName = "exception";
-        
+
         public const string AttributeHttpRequestMethod = "http.request.method";
         public const string AttributeHttpRequestMethodOriginal = "http.request.method_original";
         public const string AttributeHttpResponseStatusCode = "http.response.status_code";

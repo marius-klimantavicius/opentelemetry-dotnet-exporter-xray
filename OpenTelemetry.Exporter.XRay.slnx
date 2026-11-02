@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path="LICENSE" />
+    <File Path="README.md" />
+  </Folder>
+  <Project Path="OpenTelemetry.Exporter.XRay.SourceGenerators/OpenTelemetry.Exporter.XRay.SourceGenerators.csproj" />
+  <Project Path="OpenTelemetry.Exporter.XRay.Tests/OpenTelemetry.Exporter.XRay.Tests.csproj" />
+  <Project Path="OpenTelemetry.Exporter.XRay/OpenTelemetry.Exporter.XRay.csproj" />
+</Solution>

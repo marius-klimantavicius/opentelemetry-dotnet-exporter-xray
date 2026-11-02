@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -17,11 +18,16 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
 
             var message = default(string);
             var hasExceptions = false;
+            var isAwsSdkSpan = span.TagObjects.TryGetValue(XRayConventions.AttributeRpcSystem, out var rpcSystem) &&
+                rpcSystem.AsString() == "aws-api";
 
             foreach (var ev in span.Events)
             {
-                if (ev.Name == XRayConventions.ExceptionEventName)
+                if (ev.Name == XRayConventions.ExceptionEventName || (isAwsSdkSpan && ev.Name == XRayConventions.HttpRequestFailureEventName))
+                {
                     hasExceptions = true;
+                    break;
+                }
             }
 
             if (status == ActivityStatusCode.Unset)
@@ -42,12 +48,17 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 var language = "dotnet";
                 if (resourceAttributes.TryGetAttributeTelemetrySdkLanguage(out var value))
                     language = value.AsString();
+                var isRemote = span.Kind == ActivityKind.Client || span.Kind == ActivityKind.Producer;
 
                 writer.WritePropertyName(XRayField.Cause);
                 writer.WriteStartObject();
 
                 writer.WritePropertyName(XRayField.Exceptions);
                 writer.WriteStartArray();
+
+#if NET9_0_OR_GREATER
+                Span<char> formatterBuffer = stackalloc char[64];
+#endif
 
                 foreach (var ev in span.Events)
                 {
@@ -67,7 +78,39 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                         if (ev.Tags.TryGetValue(XRayConventions.AttributeExceptionStacktrace, out value))
                             stackTrace = value.AsString();
 
-                        WriteException(writer, exceptionType, message, stackTrace, language);
+                        WriteException(writer, exceptionType, message, stackTrace, language, isRemote);
+                    }
+                    else if (isAwsSdkSpan && ev.Name == XRayConventions.HttpRequestFailureEventName && ev.Tags.TryGetValue(XRayConventions.AttributeHttpResponseStatusCode, out var errorCode) && ev.Tags.TryGetValue(XRayConventions.AttributeAwsHttpErrorMessage, out var errorMessage))
+                    {
+                        // AWS SDK retry errors use epoch microseconds with exactly six decimal places.
+                        var epochTicks = (ev.Timestamp.UtcDateTime - DateTime.UnixEpoch).Ticks;
+                        var epochMicroseconds = epochTicks / 10;
+                        if (epochTicks % 10 < 0)
+                            epochMicroseconds--;
+
+#if NET9_0_OR_GREATER
+
+                        formatterBuffer.Clear();
+
+                        var formatter = new DefaultInterpolatedStringHandler(1, 3, CultureInfo.InvariantCulture, formatterBuffer);
+                        formatter.AppendFormatted(errorCode);
+                        formatter.AppendLiteral("@");
+                        formatter.AppendFormatted(epochMicroseconds / 1000000m, "F6");
+                        formatter.AppendLiteral("@");
+                        formatter.AppendFormatted(errorMessage.AsString());
+
+                        message = formatter.ToStringAndClear();
+#else
+                        var time = (epochMicroseconds / 1000000m).ToString("F6", CultureInfo.InvariantCulture);
+                        message = string.Join("@", System.Convert.ToString(errorCode, CultureInfo.InvariantCulture), time, errorMessage.AsString());
+#endif
+
+                        writer.WriteStartObject();
+                        writer.WriteString(XRayField.Id, NewSegmentId().ToHexString());
+                        writer.WriteString(XRayField.Type, "aws.http.error.event");
+                        writer.WriteBoolean(XRayField.Remote, true);
+                        writer.WriteString(XRayField.Message, message);
+                        writer.WriteEndObject();
                     }
                 }
 
@@ -113,29 +156,29 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             var isError = false;
             var isThrottle = false;
             var isFault = false;
-            if (status == ActivityStatusCode.Error)
+            // HTTP attributes may already have been consumed by WriteHttp. Use the same
+            // convention precedence so the response status and error flags agree.
+            var httpStatus = default(object);
+            var hasHttpStatus = !_dontEmitV0HttpNetworkConventions && span.TagObjects.TryGetValue(XRayConventions.AttributeHttpStatusCode, out httpStatus);
+            if (span.TagObjects.TryGetValue(XRayConventions.AttributeHttpResponseStatusCode, out var stableStatus) && (!hasHttpStatus || _emitV1HttpNetworkConventions && IsHttpInteger(stableStatus)))
             {
-                // we can't use tag dictionary here because http status code might have been already consumed
-                if (context.Span.TagObjects.TryGetValue(XRayConventions.AttributeHttpStatusCode, out var value))
-                {
-                    var code = value.AsInt();
-                    if (code >= 400 && code <= 499)
-                    {
-                        isError = true;
-                        if (code == 429)
-                            isThrottle = true;
-                    }
-                    else
-                    {
-                        isFault = true;
-                    }
-                }
-                else
-                {
-                    isFault = true;
-                }
+                httpStatus = stableStatus;
+                hasHttpStatus = true;
+            }
 
-                context.SpanTags.ResetConsume();
+            var code = httpStatus.AsInt();
+            if (hasHttpStatus && code >= 400 && code <= 499)
+            {
+                isError = true;
+                isThrottle = code == 429;
+            }
+            else if (hasHttpStatus && code >= 500 && code <= 599)
+            {
+                isFault = true;
+            }
+            else
+            {
+                isFault = status == ActivityStatusCode.Error;
             }
 
             writer.WriteBoolean(XRayField.Error, isError);
@@ -143,7 +186,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             writer.WriteBoolean(XRayField.Fault, isFault);
         }
 
-        private void WriteException(Utf8JsonWriter writer, string exceptionType, string message, string stacktrace, string language)
+        private void WriteException(Utf8JsonWriter writer, string exceptionType, string message, string stacktrace, string language, bool isRemote)
         {
             writer.WriteStartObject();
             writer.WriteString(XRayField.Id, NewSegmentId().ToHexString());
@@ -152,6 +195,8 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             if (message != null)
                 writer.WriteString(XRayField.Message, message);
 
+            writer.WriteBoolean(XRayField.Remote, isRemote);
+
             if (!string.IsNullOrEmpty(stacktrace))
             {
                 // Right now we only care about dotnet, other languages can be ported on-demand
@@ -159,10 +204,10 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 {
                     case "java":
                     case "php": // The PHP SDK formats stack traces exactly like Java would
-                        WriteJavaStacktrace(writer, stacktrace);
+                        WriteJavaStacktrace(writer, stacktrace, isRemote);
                         break;
                     case "python":
-                        WritePythonStacktrace(writer, stacktrace);
+                        WritePythonStacktrace(writer, stacktrace, isRemote);
                         break;
                     case "javascript":
                         WriteJavaScriptStacktrace(writer, stacktrace);
@@ -179,7 +224,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             writer.WriteEndObject();
         }
 
-        private void WriteJavaStacktrace(Utf8JsonWriter writer, string stacktrace)
+        private void WriteJavaStacktrace(Utf8JsonWriter writer, string stacktrace, bool isRemote)
         {
             var r = new XRayStringReader(stacktrace);
 
@@ -253,7 +298,9 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                     writer.WriteString(XRayField.Id, nextId);
                     if (!causeType.IsEmpty)
                         writer.WriteString(XRayField.Type, causeType);
+
                     writer.WriteString(XRayField.Message, causeMessage);
+                    writer.WriteBoolean(XRayField.Remote, isRemote);
                 }
             }
 
@@ -369,7 +416,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             }
         }
 
-        private void WritePythonStacktrace(Utf8JsonWriter writer, string stacktrace)
+        private void WritePythonStacktrace(Utf8JsonWriter writer, string stacktrace, bool isRemote)
         {
             var r = new XRayReverseStringReader(stacktrace);
             if (!r.ReadLine())
@@ -460,7 +507,9 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                     writer.WriteString(XRayField.Id, nextId);
                     if (!causeType.IsEmpty)
                         writer.WriteString(XRayField.Type, causeType);
+
                     writer.WriteString(XRayField.Message, causeMessage);
+                    writer.WriteBoolean(XRayField.Remote, isRemote);
                 }
             }
 
@@ -484,7 +533,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 if (line.StartsWith("goroutine") && line[^1] == ':')
                 {
                     var runningIndex = line.IndexOf("running");
-                    
+
                     // we can safely index before and after the match as we already checked that line starts with goroutine and ends with ':'
                     if (runningIndex >= 0 && !char.IsLetterOrDigit(line[runningIndex - 1]) && !char.IsLetterOrDigit(line[runningIndex + 8]))
                     {
@@ -508,10 +557,12 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 writer.WriteEndArray();
             }
 
+            return;
+
             static ReadOnlySpan<char> ParsePathAndLineNumber(ReadOnlySpan<char> line, out int lineNumber)
             {
                 lineNumber = 0;
-                
+
                 // ([^:\s]+)\:(\d+)
                 while (!line.IsEmpty)
                 {

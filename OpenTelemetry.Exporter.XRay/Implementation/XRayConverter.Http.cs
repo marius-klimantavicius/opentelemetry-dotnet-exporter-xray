@@ -23,69 +23,76 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             var urlParts = new XRayHttpUrlParts();
 
             var spanTags = context.SpanTags;
-            if (spanTags.TryGetAttributeHttpMethod(out var value) || spanTags.TryGetAttributeHttpRequestMethod(out value))
+            // Stable aliases remain available by default. Opting in makes nonempty modern
+            // values win, while reading both enabled keys consumes both aliases.
+            if ((!_dontEmitV0HttpNetworkConventions && spanTags.TryGetAttributeHttpMethod(out var value)) || spanTags.TryGetAttributeHttpRequestMethod(out value))
             {
                 requestMethod = value.AsString();
                 hasHttp = true;
-                spanTags.TryGetAttributeHttpRequestMethod(out value); // consume
+                if (spanTags.TryGetAttributeHttpRequestMethod(out value) && _emitV1HttpNetworkConventions && !string.IsNullOrEmpty(value.AsString()))
+                    requestMethod = value.AsString();
             }
 
-            if (spanTags.TryGetAttributeHttpClientIp(out value))
+            if (!_dontEmitV0HttpNetworkConventions && spanTags.TryGetAttributeHttpClientIp(out value))
             {
                 requestClientIp = value.AsString();
                 hasHttp = true;
             }
 
-            if (spanTags.TryGetAttributeHttpUserAgent(out value) || spanTags.TryGetAttributeUserAgentOriginal(out value))
+            if ((!_dontEmitV0HttpNetworkConventions && spanTags.TryGetAttributeHttpUserAgent(out value)) || spanTags.TryGetAttributeUserAgentOriginal(out value))
             {
                 requestUserAgent = value.AsString();
                 hasHttp = true;
-                spanTags.TryGetAttributeUserAgentOriginal(out value); // consume
+                if (spanTags.TryGetAttributeUserAgentOriginal(out value) && _emitV1HttpNetworkConventions && !string.IsNullOrEmpty(value.AsString()))
+                    requestUserAgent = value.AsString();
             }
 
-            if (spanTags.TryGetAttributeHttpStatusCode(out value) || spanTags.TryGetAttributeHttpResponseStatusCode(out value))
+            if ((!_dontEmitV0HttpNetworkConventions && spanTags.TryGetAttributeHttpStatusCode(out value)) || spanTags.TryGetAttributeHttpResponseStatusCode(out value))
             {
                 responseStatus = value.AsInt();
                 hasHttp = true;
-                spanTags.TryGetAttributeHttpResponseStatusCode(out value); // consume
+                if (spanTags.TryGetAttributeHttpResponseStatusCode(out value) && _emitV1HttpNetworkConventions && IsHttpInteger(value))
+                    responseStatus = value.AsInt();
             }
 
-            if (spanTags.TryGetAttributeHttpUrl(out value) || spanTags.TryGetAttributeUrlFull(out value))
+            if ((!_dontEmitV0HttpNetworkConventions && spanTags.TryGetAttributeHttpUrl(out value)) || spanTags.TryGetAttributeUrlFull(out value))
             {
                 urlParts.AttributeHttpUrl = value.AsString();
                 hasHttp = true;
                 hasHttpRequestUrlAttributes = true;
-                spanTags.TryGetAttributeUrlFull(out value); // consume
+                if (spanTags.TryGetAttributeUrlFull(out value) && _emitV1HttpNetworkConventions && !string.IsNullOrEmpty(value.AsString()))
+                    urlParts.AttributeHttpUrl = value.AsString();
             }
 
-            if (spanTags.TryGetAttributeHttpScheme(out value) || spanTags.TryGetAttributeUrlScheme(out value))
+            if ((!_dontEmitV0HttpNetworkConventions && spanTags.TryGetAttributeHttpScheme(out value)) || spanTags.TryGetAttributeUrlScheme(out value))
             {
                 urlParts.AttributeHttpScheme = value.AsString();
                 hasHttp = true;
-                spanTags.TryGetAttributeUrlScheme(out value); // consume
+                if (spanTags.TryGetAttributeUrlScheme(out value) && _emitV1HttpNetworkConventions && !string.IsNullOrEmpty(value.AsString()))
+                    urlParts.AttributeHttpScheme = value.AsString();
             }
 
-            if (spanTags.TryGetAttributeHttpHost(out value))
+            if (!_dontEmitV0HttpNetworkConventions && spanTags.TryGetAttributeHttpHost(out value))
             {
                 urlParts.AttributeHttpHost = value.AsString();
                 hasHttp = true;
                 hasHttpRequestUrlAttributes = true;
             }
 
-            if (spanTags.TryGetAttributeHttpTarget(out value))
+            if (!_dontEmitV0HttpNetworkConventions && spanTags.TryGetAttributeHttpTarget(out value))
             {
                 urlParts.AttributeHttpTarget = value.AsString();
                 hasHttp = true;
             }
 
-            if (spanTags.TryGetAttributeHttpServerName(out value))
+            if (!_dontEmitV0HttpNetworkConventions && spanTags.TryGetAttributeHttpServerName(out value))
             {
                 urlParts.AttributeHttpServerName = value.AsString();
                 hasHttp = true;
                 hasHttpRequestUrlAttributes = true;
             }
 
-            if (spanTags.TryGetAttributeNetHostPort(out value))
+            if (!_dontEmitV0HttpNetworkConventions && spanTags.TryGetAttributeNetHostPort(out value))
             {
                 urlParts.AttributeNetHostPort = value.AsString();
                 hasHttp = true;
@@ -99,30 +106,32 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 hasHttpRequestUrlAttributes = true;
             }
 
-            if (spanTags.TryGetAttributeNetHostName(out value))
+            if (!_dontEmitV0HttpNetworkConventions && spanTags.TryGetAttributeNetHostName(out value))
             {
                 urlParts.AttributeNetHostName = value.AsString();
                 hasHttpRequestUrlAttributes = true;
             }
 
-            if (spanTags.TryGetAttributeNetPeerName(out value))
+            if (!_dontEmitV0HttpNetworkConventions && spanTags.TryGetAttributeNetPeerName(out value))
             {
                 urlParts.AttributeNetPeerName = value.AsString();
+                hasHttpRequestUrlAttributes = true;
             }
 
-            if (spanTags.TryGetAttributeNetPeerPort(out value))
+            if (!_dontEmitV0HttpNetworkConventions && spanTags.TryGetAttributeNetPeerPort(out value))
             {
                 urlParts.AttributeNetPeerPort = value.AsString();
                 if (string.IsNullOrEmpty(urlParts.AttributeNetPeerPort))
                     urlParts.AttributeNetPeerPort = value.AsInt().ToString(CultureInfo.InvariantCulture);
             }
 
-            if (spanTags.TryGetAttributeNetPeerIp(out value))
+            if (!_dontEmitV0HttpNetworkConventions && spanTags.TryGetAttributeNetPeerIp(out value))
             {
                 // Prefer HTTP forwarded information (AttributeHTTPClientIP) when present.
                 requestClientIp ??= value.AsString();
                 urlParts.AttributeNetPeerIp = value.AsString();
                 hasHttpRequestUrlAttributes = true;
+                hasNetPeerAddress = true;
             }
 
             if (spanTags.TryGetAttributeNetworkPeerAddress(out value))
@@ -141,22 +150,35 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                     requestClientIp = value.AsString();
             }
 
+            if (_emitV1HttpNetworkConventions && spanTags.TryGetAttributeNetworkPeerPort(out value) && TryGetHttpPort(value, out var networkPeerPort))
+                urlParts.AttributeNetworkPeerPort = networkPeerPort;
+
             if (spanTags.TryGetAttributeUrlPath(out value))
             {
                 urlParts.AttributeUrlPath = value.AsString();
                 hasHttp = true;
             }
 
+            if (spanTags.TryGetAttributeUrlQuery(out value))
+            {
+                urlParts.AttributeUrlQuery = value.AsString();
+                hasHttp = true;
+            }
+
             if (spanTags.TryGetAttributeServerAddress(out value))
             {
-                urlParts.AttributeServerAddress = value.AsString();
-                hasHttpRequestUrlAttributes = true;
+                if (!_emitV1HttpNetworkConventions || !string.IsNullOrEmpty(value.AsString()))
+                {
+                    urlParts.AttributeServerAddress = value.AsString();
+                    hasHttpRequestUrlAttributes = true;
+                }
             }
 
             if (spanTags.TryGetAttributeServerPort(out value))
             {
-                urlParts.AttributeServerPort = value.AsString();
-                if (string.IsNullOrEmpty(urlParts.AttributeServerPort))
+                if (TryGetHttpPort(value, out var serverPort))
+                    urlParts.AttributeServerPort = serverPort;
+                else if (!_emitV1HttpNetworkConventions)
                     urlParts.AttributeServerPort = value.AsInt().ToString(CultureInfo.InvariantCulture);
             }
 
@@ -169,14 +191,20 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 return;
             }
 
-            var writer = context.Writer;
-            writer.WritePropertyName(XRayField.Http);
-            writer.WriteStartObject();
-
             if (spanTags.TryGetAttributeHttpResponseContentLength(out value) && value != null)
                 responseContentLength = value.AsInt();
             else
                 responseContentLength = ExtractResponseSizeFromEvents(context);
+
+            if (context.IsServiceSegment)
+            {
+                spanTags.Consume();
+                return;
+            }
+
+            var writer = context.Writer;
+            writer.WritePropertyName(XRayField.Http);
+            writer.WriteStartObject();
 
             writer.WritePropertyName(XRayField.Request);
             writer.WriteStartObject();
@@ -216,7 +244,25 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             writer.WriteEndObject();
         }
 
-        private static long? ExtractResponseSizeFromEvents(in XRayConverterContext context)
+        private static bool IsHttpInteger(object value)
+        {
+            return value is int || value is uint || value is long;
+        }
+
+        private static bool TryGetHttpPort(object value, out string port)
+        {
+            port = value.AsString();
+            if (!string.IsNullOrEmpty(port))
+                return true;
+
+            if (!IsHttpInteger(value))
+                return false;
+
+            port = value.AsInt().ToString(CultureInfo.InvariantCulture);
+            return true;
+        }
+
+        private long? ExtractResponseSizeFromEvents(in XRayConverterContext context)
         {
             var size = ExtractResponseSizeFromAttributes(context.SpanTags);
             if (size != null)
@@ -232,40 +278,46 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
             return null;
         }
 
-        private static long? ExtractResponseSizeFromAttributes(XRayTagDictionary tagDictionary)
+        private long? ExtractResponseSizeFromAttributes(XRayTagDictionary tagDictionary)
         {
             if (tagDictionary.TryGetAttributeMessageType(out var value) && value.AsString() == "RECEIVED")
             {
-                if (tagDictionary.TryGetAttributeMessagingPayloadSize(out value))
-                    return value.AsInt();
+                var size = default(long?);
+                if (!_dontEmitV0HttpNetworkConventions && tagDictionary.TryGetAttributeMessagingPayloadSize(out value))
+                    size = value.AsInt();
+
+                // Match the alias precedence used for HTTP attributes, including a valid zero size.
+                if (_emitV1HttpNetworkConventions && tagDictionary.TryGetAttributeMessagingMessageBodySize(out value) && IsHttpInteger(value))
+                    size = value.AsInt();
+
+                return size;
             }
 
             return null;
         }
 
-        private static long? ExtractResponseSizeFromAttributes(IEnumerable<KeyValuePair<string, object>> tags)
+        private long? ExtractResponseSizeFromAttributes(IEnumerable<KeyValuePair<string, object>> tags)
         {
             var isReceived = false;
             var result = default(long?);
+            var modernResult = default(long?);
             foreach (var (key, value) in tags)
             {
                 if (key == XRayConventions.AttributeMessageType && value.AsString() == "RECEIVED")
-                {
                     isReceived = true;
-                }
-                else if (key == XRayConventions.AttributeMessagingPayloadSize)
-                {
+                else if (!_dontEmitV0HttpNetworkConventions && key == XRayConventions.AttributeMessagingPayloadSize)
                     result = value.AsInt();
-                }
+                else if (_emitV1HttpNetworkConventions && key == XRayConventions.AttributeMessagingMessageBodySize && IsHttpInteger(value))
+                    modernResult = value.AsInt();
             }
 
             if (isReceived)
-                return result;
+                return modernResult ?? result;
 
             return null;
         }
 
-        private static void WriteClientUrl(Utf8JsonWriter writer, ref XRayHttpUrlParts urlParts)
+        private void WriteClientUrl(Utf8JsonWriter writer, ref XRayHttpUrlParts urlParts)
         {
             if (urlParts.AttributeHttpUrl.TryGetValue(out var url))
             {
@@ -279,13 +331,22 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 scheme = "http";
 
             var port = "";
-            if (!urlParts.AttributeHttpHost.TryGetValue(out var host))
+            var hasModernHost = urlParts.AttributeServerAddress.TryGetValue(out var modernHost);
+            if (!urlParts.AttributeHttpHost.TryGetValue(out var host) || (_emitV1HttpNetworkConventions && hasModernHost))
             {
-                if (!urlParts.AttributeNetPeerName.TryGetValue(out host))
-                    urlParts.AttributeNetPeerIp.TryGetValue(out host);
+                if (_emitV1HttpNetworkConventions && hasModernHost)
+                    host = modernHost;
+                else if (!urlParts.AttributeNetPeerName.TryGetValue(out host) && !urlParts.AttributeNetPeerIp.TryGetValue(out host))
+                    host = modernHost;
 
-                if (!urlParts.AttributeNetPeerPort.TryGetValue(out port))
-                    port = "";
+                if (!_emitV1HttpNetworkConventions || !urlParts.AttributeServerPort.TryGetValue(out port))
+                {
+                    if (!urlParts.AttributeNetPeerPort.TryGetValue(out port))
+                    {
+                        if (!urlParts.AttributeNetworkPeerPort.TryGetValue(out port))
+                            port = "";
+                    }
+                }
             }
 
             var sb = new ValueStringBuilder(stackalloc char[128]);
@@ -298,10 +359,7 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 sb.Append(port);
             }
 
-            if (urlParts.AttributeHttpTarget.TryGetValue(out var target))
-                sb.Append(target);
-            else
-                sb.Append('/');
+            AppendHttpTarget(ref sb, ref urlParts);
 
             writer.WriteString(XRayField.Url, sb.AsSpan());
             sb.Dispose();
@@ -349,6 +407,14 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                 sb.Append(port);
             }
 
+            AppendHttpTarget(ref sb, ref urlParts);
+
+            writer.WriteString(XRayField.Url, sb.AsSpan());
+            sb.Dispose();
+        }
+
+        private static void AppendHttpTarget(ref ValueStringBuilder sb, ref XRayHttpUrlParts urlParts)
+        {
             if (urlParts.AttributeHttpTarget.TryGetValue(out var target))
             {
                 sb.Append(target);
@@ -359,10 +425,14 @@ namespace OpenTelemetry.Exporter.XRay.Implementation
                     sb.Append(path);
                 else
                     sb.Append('/');
-            }
 
-            writer.WriteString(XRayField.Url, sb.AsSpan());
-            sb.Dispose();
+                if (urlParts.AttributeUrlQuery.TryGetValue(out var query))
+                {
+                    if (!query.StartsWith("?", System.StringComparison.Ordinal))
+                        sb.Append('?');
+                    sb.Append(query);
+                }
+            }
         }
     }
 }

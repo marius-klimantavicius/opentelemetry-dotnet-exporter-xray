@@ -1,5 +1,8 @@
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
+using System.Text.Json;
 using OpenTelemetry.Exporter.XRay.Implementation;
 using OpenTelemetry.Resources;
 using Xunit;
@@ -335,15 +338,17 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             Assert.Equal("1.2.3", awsData.XRay.SdkVersion);
         }
 
-        [Fact]
-        public void Should_map_java_sdk_autoannotation()
+        [Theory]
+        [InlineData(XRayConventions.AttributeTelemetryAutoVersion)]
+        [InlineData(XRayConventions.AttributeTelemetryDistroVersion)]
+        public void Should_map_java_sdk_autoannotation(string versionKey)
         {
             var attributes = new Dictionary<string, object>
             {
                 [XRayConventions.AttributeTelemetrySdkName] = "opentelemetry",
                 [XRayConventions.AttributeTelemetrySdkLanguage] = "java",
                 [XRayConventions.AttributeTelemetrySdkVersion] = "1.2.3",
-                [XRayConventions.AttributeTelemetryAutoVersion] = "3.4.5",
+                [versionKey] = "3.4.5",
             };
 
             var resource = new Resource(attributes);
@@ -357,6 +362,137 @@ namespace OpenTelemetry.Exporter.XRay.Tests
             Assert.Equal("opentelemetry for java", awsData.XRay.Sdk);
             Assert.Equal("1.2.3", awsData.XRay.SdkVersion);
             Assert.True(awsData.XRay.AutoInstrumentation);
+        }
+
+        [Theory]
+        [InlineData(null, null, false)]
+        [InlineData("", "", false)]
+        [InlineData("3.4.5", null, true)]
+        [InlineData(null, "3.4.5", true)]
+        [InlineData("3.4.5", "", true)]
+        [InlineData("", "3.4.5", true)]
+        [InlineData("old", "new", true)]
+        public void Should_emit_auto_instrumentation_as_boolean_and_clear_cached_resource_values(string autoVersion, string distroVersion, bool expected)
+        {
+            var attributes = new Dictionary<string, object>();
+            if (autoVersion != null)
+                attributes[XRayConventions.AttributeTelemetryAutoVersion] = autoVersion;
+            if (distroVersion != null)
+                attributes[XRayConventions.AttributeTelemetryDistroVersion] = distroVersion;
+
+            var converter = CreateDefaultConverter();
+            var activity = new Activity("Test");
+            foreach (var resourceAttributes in new[] { attributes.AsEnumerable(), attributes.Reverse() })
+            {
+                using var document = JsonDocument.Parse(converter.Convert(new Resource(resourceAttributes), activity));
+                var value = document.RootElement.GetProperty("aws").GetProperty("xray").GetProperty("auto_instrumentation");
+                Assert.Equal(expected ? JsonValueKind.True : JsonValueKind.False, value.ValueKind);
+                Assert.Equal(expected, value.GetBoolean());
+                Assert.False(ConvertSegment(converter, activity).Aws.XRay.AutoInstrumentation);
+            }
+        }
+
+        [Theory]
+        [InlineData(XRayConventions.AttributeAwsSqsQueueUrl)]
+        [InlineData(XRayConventions.AttributeAwsQueueUrl)]
+        [InlineData(XRayConventions.AttributeAwsQueueUrl2)]
+        public void Should_consume_sqs_queue_url_alias(string key)
+        {
+            var activity = new Activity("Test");
+            activity.SetTag(key, "https://sqs.us-east-1.amazonaws.com/123/queue");
+            var converter = new XRayConverter(null, null, false, false);
+
+            var segment = ConvertSegment(converter, activity);
+
+            Assert.Equal("https://sqs.us-east-1.amazonaws.com/123/queue", segment.Aws.QueueUrl);
+            Assert.Null(segment.Annotations);
+            Assert.Null(segment.Metadata);
+            Assert.Null(ConvertSegment(converter, new Activity("Empty")).Aws.QueueUrl);
+            Assert.Equal(segment.Aws.QueueUrl, ConvertSegment(converter, activity).Aws.QueueUrl);
+        }
+
+        [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void Should_prefer_messaging_url_over_sqs_alias_and_sqs_alias_over_legacy_keys(bool reverse)
+        {
+            var attributes = new Dictionary<string, object>
+            {
+                [XRayConventions.AttributeAwsQueueUrl] = "legacy",
+                [XRayConventions.AttributeAwsQueueUrl2] = "alternative",
+                [XRayConventions.AttributeAwsSqsQueueUrl] = "sqs",
+            };
+            var activity = new Activity("Test");
+            foreach (var item in reverse ? attributes.Reverse() : attributes)
+                activity.SetTag(item.Key, item.Value);
+            
+            Assert.Equal("sqs", ConvertDefault(activity).Aws.QueueUrl);
+
+            activity.SetTag(XRayConventions.AttributeMessagingUrl, "messaging");
+            
+            var segment = ConvertDefault(activity);
+            Assert.Equal("messaging", segment.Aws.QueueUrl);
+            // Upstream retains messaging.url in the filtered attributes.
+            Assert.Equal("messaging", segment.Annotations["messaging_url"].ToString());
+            activity.SetTag(XRayConventions.AttributeMessagingUrl, "");
+            Assert.Equal("", ConvertDefault(activity).Aws.QueueUrl);
+        }
+
+        [Theory]
+        [InlineData(false, false, "messaging")]
+        [InlineData(true, false, "messaging")]
+        [InlineData(true, true, "sqs")]
+        public void Should_gate_messaging_url_fallback_but_always_accept_sqs_semantic_attribute(bool emitV1, bool disableV0, string expected)
+        {
+            var activity = new Activity("Test");
+            activity.SetTag(XRayConventions.AttributeAwsSqsQueueUrl, "sqs");
+            activity.SetTag(XRayConventions.AttributeMessagingUrl, "messaging");
+            var converter = new XRayConverter(null, null, false, false,
+                emitV1HttpNetworkConventions: emitV1, dontEmitV0HttpNetworkConventions: disableV0);
+
+            var segment = ConvertSegment(converter, activity);
+            Assert.Equal(expected, segment.Aws.QueueUrl);
+            Assert.True(segment.Metadata["default"].ContainsKey(XRayConventions.AttributeMessagingUrl));
+            Assert.False(segment.Metadata["default"].ContainsKey(XRayConventions.AttributeAwsSqsQueueUrl));
+
+            activity.SetTag(XRayConventions.AttributeMessagingUrl, null);
+            Assert.Equal("sqs", ConvertSegment(converter, activity).Aws.QueueUrl);
+        }
+
+        public static IEnumerable<object[]> DynamoDbTableAttributes()
+        {
+            yield return new object[] { "Table", null, "Table", null };
+            yield return new object[] { new[] { "Table" }, null, "Table", null };
+            yield return new object[] { new List<string> { "Table" }, "Legacy", "Table", null };
+            yield return new object[] { new[] { "First", "Second" }, "Legacy", null, new[] { "First", "Second" } };
+            yield return new object[] { Array.Empty<string>(), null, null, null };
+            yield return new object[] { Array.Empty<string>(), "Legacy", "Legacy", null };
+            yield return new object[] { 123, "Legacy", "Legacy", null };
+            yield return new object[] { new object[] { "First", 123 }, null, null, new[] { "First", "" } };
+        }
+
+        [Theory]
+        [MemberData(nameof(DynamoDbTableAttributes))]
+        public void Should_map_dynamodb_scalar_single_and_multiple_tables(object names, string legacyName, string expectedName, string[] expectedNames)
+        {
+            var converter = new XRayConverter(null, null, false, false);
+            var activity = new Activity("Test");
+            activity.SetTag(XRayConventions.AttributeAwsDynamoDbTableNames, names);
+            if (legacyName != null)
+                activity.SetTag(XRayConventions.AttributeAwsTableName, legacyName);
+
+            var segment = ConvertSegment(converter, activity);
+
+            Assert.Equal(expectedName, segment.Aws.TableName);
+            Assert.Equal(expectedNames, segment.Aws.TableNames);
+            // DynamoDB's semantic attribute remains available for metadata, like upstream.
+            Assert.True(segment.Metadata["default"].ContainsKey(XRayConventions.AttributeAwsDynamoDbTableNames));
+            Assert.False(segment.Metadata["default"].ContainsKey(XRayConventions.AttributeAwsTableName));
+            var empty = ConvertSegment(converter, new Activity("Empty"));
+            Assert.Null(empty.Aws.TableName);
+            Assert.Null(empty.Aws.TableNames);
+            Assert.Null(empty.Metadata);
+            Assert.Equal(expectedNames, ConvertSegment(converter, activity).Aws.TableNames);
         }
 
         [Fact]

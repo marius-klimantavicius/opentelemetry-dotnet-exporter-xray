@@ -31,7 +31,7 @@ namespace OpenTelemetry.Exporter.XRay
         /// Resource attributes are passed with "otel.resource." prefix.
         /// </para>
         /// <para>
-        /// This is ignored if <see cref="IndexAllAttributes"/> is provided.
+        /// Explicitly listed attributes can also restore fields consumed into dedicated X-Ray fields.
         /// </para>
         /// </summary>
         public IEnumerable<string> IndexedAttributes { get; set; } = Enumerable.Empty<string>();
@@ -64,7 +64,8 @@ namespace OpenTelemetry.Exporter.XRay
         /// <see cref="ShouldIndexAttribute"/> options.
         /// </para>
         /// <para>
-        /// This overrides <see cref="ShouldIndexAttribute"/> and <see cref="IndexedAttributes"/>.
+        /// This overrides <see cref="ShouldIndexAttribute"/> for unknown attributes.
+        /// Explicit <see cref="IndexedAttributes"/> still restore consumed fields.
         /// </para>
         /// </summary>
         public bool IndexAllAttributes { get; set; } = true;
@@ -98,7 +99,29 @@ namespace OpenTelemetry.Exporter.XRay
         /// Corresponds to "exporter.xray.allowDot" feature flag in awsxrayconverter.
         /// </summary>
         public bool AllowDotInAnnotationKey { get; set; } = false;
-        
+
+        /// <summary>
+        /// Gets or sets a value indicating whether to emit modern database conventions.
+        /// </summary>
+        public bool EmitV1DbConventions { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether to ignore legacy database conventions.
+        /// Requires <see cref="EmitV1DbConventions"/>.
+        /// </summary>
+        public bool DontEmitV0DbConventions { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether to emit modern HTTP/network conventions.
+        /// </summary>
+        public bool EmitV1HttpNetworkConventions { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether to ignore legacy HTTP/network conventions.
+        /// Requires <see cref="EmitV1HttpNetworkConventions"/>.
+        /// </summary>
+        public bool DontEmitV0HttpNetworkConventions { get; set; }
+
         /// <summary>
         /// Gets or sets the type of Export Processor to be used.
         /// </summary>
